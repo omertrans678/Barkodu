@@ -1,0 +1,7 @@
+tooling/
+.gradle/
+local.properties
+**/build/
+*.apk
+
+signing/
