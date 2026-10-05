@@ -59,7 +59,7 @@ const assert=require('assert');
     assert.equal(await page.evaluate(()=>items.length),result.records);
     await page.evaluate(()=>{$('cargo').value='tex';$('cargo').onchange();$('scan-area').classList.add('scanning');$('camera').hidden=true;$('stop').hidden=false;$('resolution').textContent='3840 × 2160';});
     for(const size of [{width:390,height:664},{width:360,height:640},{width:664,height:390}]){
-      await page.setViewportSize(size);
+      await page.setViewportSize(size); await page.screenshot({path: 'BarkodListe/'+({390:'kamera-liste.png',360:'kamera-liste-v7.png',664:'yayin.png'}[size.width])});
       const boxes=await page.evaluate(()=>{const v=$('video').getBoundingClientRect(),l=$('list-area').getBoundingClientRect(),f=document.querySelector('footer').getBoundingClientRect();return {videoBottom:v.bottom,listTop:l.top,listHeight:l.height,footerBottom:f.bottom,viewport:innerHeight};});
       assert(boxes.videoBottom<=boxes.listTop&&boxes.listHeight>=40&&boxes.footerBottom<=boxes.viewport+1,JSON.stringify(boxes));
     }
