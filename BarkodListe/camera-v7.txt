@@ -58,7 +58,7 @@ function stopCamera() {
   currentCode = ''; missedFrames = 0;
 }
 $('camera').onclick = async () => {
-  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {status('Kamera için HTTPS adresinden açın.'); return;}
+  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {status('Open an HTTPS address to use the camera.'); return;}
   $('camera').disabled = true;
   try {
     detector = null; decoder = null;
@@ -88,11 +88,11 @@ $('camera').onclick = async () => {
     $('scan-area').classList.add('scanning'); $('camera').hidden=true; $('stop').hidden=false;
     const settings = track.getSettings();
     $('resolution').textContent = `${settings.width || '?'} × ${settings.height || '?'}`;
-    status('Kamera açık · Yatay veya dikey okutun.');
+    status('Camera on · Scan horizontally or vertically.');
     frameRequest = requestAnimationFrame(scanLoop);
-  } catch {stopCamera();status('Kamera açılamadı. Kamera iznini ve internet bağlantısını kontrol edin.');}
+  } catch {stopCamera();status('Could not start the camera. Check camera permission and your internet connection.');}
   finally {$('camera').disabled=false;}
 };
-$('stop').onclick = () => {stopCamera();status('Kamera kapatıldı.');};
+$('stop').onclick = () => {stopCamera();status('Camera stopped.');};
 window.addEventListener('pagehide', stopCamera);
 render();
