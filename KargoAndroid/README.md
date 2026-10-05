@@ -1,26 +1,15 @@
-# Kargo Barkod Android uygulaması
+# Barkodu Android — v0.1-beta
 
-Android 6 ve üzeri için yerel CameraX ve çevrimdışı ML Kit barkod okuyucu. Kamera ve liste aynı ekranda; dört kargo, Bilinmeyen sekmesi, tekrar sayısı, geri alma, Excel ve TXT paylaşımı bulunur.
+Native CameraX and offline ML Kit barcode scanning for Android 6 and later, with a Miuix Compose interface.
 
-Android Studio ile bu klasörü açın. SDK 36 gerekir. Kurulum APK dosyası üst klasörde KargoBarkod-1.0.apk olarak bulunur. Yerel kurulum için debug anahtarıyla imzalanmış release derlemesidir. GitHub beta yayını: https://github.com/omertrans678/Barkodu/releases/tag/v0.1-beta
+Select DHL/MNG, HepsiJet, Tex or Aras before scanning. Unmatched barcodes go to Unknown. Scan horizontally or vertically, add codes manually, undo changes, and export Excel or TXT files.
 
-Doğrulama: release derlemesi, APK imzası ve dört birim testi başarılı. Gerçek cihaz kamera ve ekran testi henüz yapılmamıştır.
+A barcode held in view is added once. Remove it from view for at least 500 ms before presenting it again to count another order. Different codes are accepted immediately. The optional repeat warning is saved between launches.
 
+Open this directory in Android Studio. Use Android SDK 36, JDK 17+ and Gradle 9.1.0. Run `gradle testDebugUnitTest assembleRelease`; add `-PphoneApk` for ARM phones. Local signing keys and SDK paths are excluded from Git.
 
-## Sürüm 1.1 — Miuix
+The test suite contains 4 model/export tests, 6 scan gate tests and 3 UI tests. Real phone camera testing is pending.
 
-Miuix 0.8.8 ve Jetpack Compose ile açık/koyu tema, yuvarlak kartlar ve altta kargo/işlem düğmeleri. Dikeyde kamera üstte ve liste altta; yatayda yan yana. Barkod ve dışa aktarma kuralları korunur. Aynı paket adı ve imza ile 1.0 üzerine kurulabilir. Liste verisi aynı SharedPreferences kaydında korunur.
+[Download the beta](https://github.com/omertrans678/Barkodu/releases/tag/v0.1-beta).
 
-Kaynak: https://github.com/compose-miuix-ui/miuix (Apache 2.0). Lisans APK assets içinde bulunur.
-
-Doğrulama: 4 model/Excel testi ve 2 Miuix ekran testi (dikey iş akışı, yatay koyu tema) geçti. Release derlemesi, APK imzası ve 16 KB hizalaması doğrulandı. 1.0 ile imza eşleşir. Gerçek telefon kamera testi yapılmadı.
-
-
-## Sürüm 1.2 — Tekrar okuma koruması
-
-Kamerada tutulan barkod tekrar eklenmez. Kısa okuma kayıpları kilidi açmaz; en az 500 ms boyunca tekrarlanan boş sonuçlardan sonra aynı kod ikinci sipariş olarak sayılabilir. Farklı kodlar beklemeden eklenir. Kamera kapatıp açılması ve ekran dönüşü aynı kodun kilidini açmaz.
-
-Ayarlar > Tekrar okuma uyarısı varsayılan olarak açıktır, tercih kalıcıdır. Barkod tutulurken bir kez kısa bildirim gösterilir. Uyarıyı kapatmak tekrar korumasını kapatmaz.
-
-13 test geçti: 4 model/Excel, 6 okuma kilidi ve 3 Miuix ekran testi. Güncelleme imzası ve APK hizalaması doğrulandı. Gerçek telefon kamera testi yapılmadı.
-
+Miuix: https://github.com/compose-miuix-ui/miuix (Apache 2.0). The license is included in APK assets.
