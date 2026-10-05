@@ -1,0 +1,50 @@
+plugins { id 'com.android.application'; id 'org.jetbrains.kotlin.android'; id 'org.jetbrains.kotlin.plugin.compose' }
+android {
+    namespace 'tr.texgo.kargobarkod'
+    compileSdk 36
+    defaultConfig {
+        applicationId 'tr.texgo.kargobarkod'
+        minSdk 23
+        targetSdk 36
+        versionCode 3
+        versionName '1.2'
+        if (project.hasProperty('phoneApk')) { ndk { abiFilters 'arm64-v8a', 'armeabi-v7a' } }
+    }
+    signingConfigs {
+        localRelease {
+            storeFile rootProject.file('signing/kargo-local.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig rootProject.file('signing/kargo-local.keystore').exists() ? signingConfigs.localRelease : signingConfigs.debug
+        }
+    }
+    testOptions { unitTests.includeAndroidResources = true; unitTests.all { systemProperty 'robolectric.dependency.repo.url', 'https://repo.maven.apache.org/maven2' } }
+    buildFeatures { compose true }
+    kotlinOptions { jvmTarget = "17" }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
+dependencies {
+    implementation 'top.yukonga.miuix.kmp:miuix-android:0.8.8'
+    implementation 'androidx.activity:activity-compose:1.12.4'
+    implementation 'org.jetbrains.compose.foundation:foundation:1.10.3'
+    implementation 'org.jetbrains.compose.ui:ui:1.10.3'
+    implementation 'androidx.activity:activity:1.12.4'
+    implementation 'androidx.core:core:1.16.0'
+    implementation 'androidx.camera:camera-core:1.5.3'
+    implementation 'androidx.camera:camera-camera2:1.5.3'
+    implementation 'androidx.camera:camera-lifecycle:1.5.3'
+    implementation 'androidx.camera:camera-view:1.5.3'
+    implementation 'com.google.mlkit:barcode-scanning:17.3.0'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.17'
+    testImplementation 'androidx.compose.ui:ui-test-junit4:1.10.5'
+    debugImplementation 'androidx.compose.ui:ui-test-manifest:1.10.5'
+}
+
+
