@@ -1,22 +1,27 @@
 # Barkodu
 
-Kargo barkodlarını kamera veya barkod okuyucu ile toplar, kargo firmasına göre listeler ve Excel/TXT olarak dışa aktarır.
-
-- `KargoAndroid/`: Android 6+ için CameraX, çevrimdışı ML Kit ve Miuix arayüzü.
-- `BarkodListe/`: tarayıcı arayüzü; kamera için HTTPS gerekir.
+Scan carrier barcodes with a camera or handheld scanner, organize them by carrier, and export Excel or TXT lists.
 
 ## v0.1-beta
 
-İlk GitHub beta yayını, mevcut Android 1.2 uygulamasını içerir. APK iç sürümü ve paket adı güncelleme uyumluluğu için korunmuştur.
+The first beta release includes an Android app and a browser interface.
 
-Releases sayfasındaki `KargoBarkod-1.2-Telefon.apk` telefonlar (ARM) içindir. `KargoBarkod-1.2-Miuix.apk` diğer mimarileri de içerir.
+- CameraX and offline ML Kit scanning on Android 6+.
+- Carrier tabs, quantities, undo, and manual entry.
+- Miuix light/dark themes and portrait/landscape layouts.
+- Repeat scan protection with an optional persistent warning.
+- Excel/TXT export and sharing; leading zeroes are preserved.
 
-Tekrar okuma koruması, kalıcı uyarı ayarı, açık/koyu tema, yatay/dikey görünüm, geri alma ve Excel/TXT paylaşımı bulunur. Gerçek telefon kamera testi henüz yapılmamıştır.
+Download `Barkodu-v0.1-beta-phone.apk` for ARM phones, or `Barkodu-v0.1-beta-universal.apk` for all supported architectures from [Releases](https://github.com/omertrans678/Barkodu/releases).
 
-## Derleme
+## Source and build
 
-Android Studio ile `KargoAndroid` klasörünü açın; JDK 17+ ve Android SDK 36 gerekir. Gradle sürümü 9.1.0'dır. `gradle testDebugUnitTest assembleRelease` komutuyla test ve APK oluşturabilirsiniz. Telefon APK'sı için `-PphoneApk` ekleyin.
+`KargoAndroid/` contains the Android application. Open it in Android Studio with JDK 17+, Android SDK 36 and Gradle 9.1.0. Run `gradle testDebugUnitTest assembleRelease`; add `-PphoneApk` for the ARM build.
 
-Yerel SDK yolları, derleme önbellekleri ve imza anahtarı Git'e dahil değildir. Yerel anahtar yoksa derleme debug anahtarı kullanır; yayımlanan APK'ya güncelleme için aynı imza gerekir.
+Local SDK paths, caches and signing keys are excluded from Git. When the local signing key is absent, release builds use a debug key. Updates must use the same signing key.
 
-Miuix lisansı `KargoAndroid/app/src/main/assets/miuix-license.txt` dosyasındadır.
+`BarkodListe/` contains the web application. Serve it over HTTPS for camera access. Camera and Excel libraries require an internet connection.
+
+The Android suite includes 13 model, scan gate and UI tests. Real phone camera testing is pending.
+
+Miuix is licensed under Apache 2.0; see `KargoAndroid/app/src/main/assets/miuix-license.txt`.
