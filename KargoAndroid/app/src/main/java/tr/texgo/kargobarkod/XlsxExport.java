@@ -19,7 +19,7 @@ public final class XlsxExport {
                 types.append("<Override PartName=\"/xl/").append(path).append("\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>");
                 workbook.append("<sheet name=\"").append(escape(CargoModel.NAMES[cargo].replace('/','-'))).append("\" sheetId=\"").append(id).append("\" r:id=\"rId").append(id).append("\"/>");
                 rels.append("<Relationship Id=\"rId").append(id).append("\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"").append(path).append("\"/>");
-                StringBuilder sheet=new StringBuilder("<worksheet xmlns=\""+NS+"\"><cols><col min=\"1\" max=\"1\" width=\"35\" customWidth=\"1\"/><col min=\"2\" max=\"2\" width=\"16\" customWidth=\"1\"/></cols><sheetData><row r=\"1\">"+cell("A1","Barkod")+cell("B1","Tekrar sayısı")+"</row>");
+                StringBuilder sheet=new StringBuilder("<worksheet xmlns=\""+NS+"\"><cols><col min=\"1\" max=\"1\" width=\"35\" customWidth=\"1\"/><col min=\"2\" max=\"2\" width=\"16\" customWidth=\"1\"/></cols><sheetData><row r=\"1\">"+cell("A1","Barcode")+cell("B1","Quantity")+"</row>");
                 int row=2;for(CargoModel.Item x:model.items)if(x.cargo==cargo){sheet.append("<row r=\"").append(row).append("\">").append(cell("A"+row,x.code)).append("<c r=\"B").append(row).append("\"><v>").append(x.quantity).append("</v></c></row>");row++;}
                 sheet.append("</sheetData></worksheet>");entry(zip,"xl/"+path,sheet.toString());
             }

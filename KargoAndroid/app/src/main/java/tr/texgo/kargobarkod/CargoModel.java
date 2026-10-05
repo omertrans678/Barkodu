@@ -3,7 +3,7 @@ package tr.texgo.kargobarkod;
 import java.util.*;
 
 public final class CargoModel {
-    public static final String[] NAMES = {"DHL/MNG", "HepsiJet", "Tex", "Aras", "Bilinmeyen"};
+    public static final String[] NAMES = {"DHL/MNG", "HepsiJet", "Tex", "Aras", "Unknown"};
     public static final String[][] PREFIXES = {{"416", "HTS"}, {"416", "H0", "HTS"}, {"73"}, {"72", "P0", "A0", "FL0"}};
     public static final int UNKNOWN=4;
     public int selected=-1, active=0;
@@ -23,7 +23,7 @@ public final class CargoModel {
     }
     private void push(Change c){c.active=active;history.addLast(c);if(history.size()>100)history.removeFirst();}
     public Item add(String raw){
-        String code=normalize(raw);if(selected<0||selected>3||!valid(code))throw new IllegalArgumentException("Önce kargo seçin ve geçerli barkod girin.");
+        String code=normalize(raw);if(selected<0||selected>3||!valid(code))throw new IllegalArgumentException("Select a carrier and enter a valid barcode.");
         int cargo=classify(code,selected),index=-1;
         for(int i=0;i<items.size();i++)if(items.get(i).cargo==cargo&&items.get(i).code.equals(code)){index=i;break;}
         Change c=new Change();c.code=code;c.cargo=cargo;c.index=index;c.previous=index>=0?items.get(index).copy():null;push(c);
@@ -41,5 +41,5 @@ public final class CargoModel {
     }
     public ArrayList<Item> visible(){ArrayList<Item> result=new ArrayList<>();for(Item x:items)if(x.cargo==active)result.add(x);return result;}
     public int count(int cargo){int n=0;for(Item x:items)if(x.cargo==cargo)n++;return n;}
-    public String text(){StringBuilder out=new StringBuilder();for(int cargo=0;cargo<NAMES.length;cargo++){if(count(cargo)==0)continue;if(out.length()>0)out.append("\n\n");out.append('[').append(NAMES[cargo]).append("]\n");for(Item x:items)if(x.cargo==cargo){out.append(x.code);if(x.quantity>1)out.append(" (").append(x.quantity).append(" adet)");out.append('\n');}}return out.toString();}
+    public String text(){StringBuilder out=new StringBuilder();for(int cargo=0;cargo<NAMES.length;cargo++){if(count(cargo)==0)continue;if(out.length()>0)out.append("\n\n");out.append('[').append(NAMES[cargo]).append("]\n");for(Item x:items)if(x.cargo==cargo){out.append(x.code);if(x.quantity>1)out.append(" (").append(x.quantity).append(" pcs)");out.append('\n');}}return out.toString();}
 }
