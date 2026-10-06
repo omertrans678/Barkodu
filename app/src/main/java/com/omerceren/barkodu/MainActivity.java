@@ -35,6 +35,9 @@ public class MainActivity extends ComponentActivity {
     private final ExecutorService fileExecutor=Executors.newSingleThreadExecutor();
     private LinearLayout root;
     private PreviewView previewView;
+    private android.graphics.Bitmap pausedFrame;
+    private int frameVersion;
+    public android.graphics.Bitmap getPausedFrame(){return pausedFrame;}
     private ProcessCameraProvider cameraProvider;
     private BarcodeScanner scanner;
     private boolean running=false, starting=false;
@@ -122,7 +125,7 @@ public class MainActivity extends ComponentActivity {
         if(decision==ScanGate.Decision.ADD)requestAdd(code);
     }
     public PreviewView createPreview(){
-        previewView=new PreviewView(this);previewView.setImplementationMode(PreviewView.ImplementationMode.COMPATIBLE);previewView.setScaleType(PreviewView.ScaleType.FIT_CENTER);return previewView;
+        previewView=new PreviewView(this);previewView.setImplementationMode(PreviewView.ImplementationMode.COMPATIBLE);previewView.setScaleType(PreviewView.ScaleType.FILL_CENTER);return previewView;
     }
     public void selectCargo(int id){model.selected=id;save();render();message(CargoModel.NAMES[id]+" selected.");}
     public void selectTab(int id){model.active=id;save();render();}
@@ -141,7 +144,7 @@ public class MainActivity extends ComponentActivity {
     private void startCamera(){
         if(model.selected<0){message("Select a carrier first.");return;}
         if(ContextCompat.checkSelfPermission(this,Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.CAMERA},CAMERA_REQUEST);return;}
-        starting=true;int token=++session;render();message("Starting camera…");ListenableFuture<ProcessCameraProvider> future=ProcessCameraProvider.getInstance(this);
+        starting=true;frameVersion++;int token=++session;render();message("Starting camera…");ListenableFuture<ProcessCameraProvider> future=ProcessCameraProvider.getInstance(this);
         future.addListener(()->{if(token!=session||!starting)return;try{cameraProvider=future.get();bindCamera(token);}catch(Exception error){stopCamera();message("Could not start the camera. Try again.");}},ContextCompat.getMainExecutor(this));
     }
     private void bindCamera(int token){
@@ -161,7 +164,18 @@ public class MainActivity extends ComponentActivity {
         cameraProvider.unbindAll();cameraProvider.bindToLifecycle(this,CameraSelector.DEFAULT_BACK_CAMERA,preview,analysis);running=true;starting=false;scanGate.pause();root.setKeepScreenOn(true);render();
         android.util.Size size=analysis.getResolutionInfo()!=null?analysis.getResolutionInfo().getResolution():null;resolutionMessage=size==null?"Built-in barcode scanning":size.getWidth()+" × "+size.getHeight()+" · ML Kit";message("Camera on · Scan horizontally or vertically.");
     }
-    private void stopCamera(){session++;running=false;starting=false;if(cameraProvider!=null)cameraProvider.unbindAll();if(root!=null)root.setKeepScreenOn(false);successFeedback=false;dismissRepeatWarning();scanGate.pause();render();}
+    private void stopCamera(){
+        android.graphics.Bitmap snapshot=null;
+        if(running&&previewView!=null)try{snapshot=previewView.getBitmap();}catch(RuntimeException ignored){}
+        if(snapshot!=null){
+            final android.graphics.Bitmap captured=snapshot;
+            final int captureVersion=++frameVersion;
+            cameraExecutor.execute(()->{
+                android.graphics.Bitmap blurred=FrameBlur.create(captured);
+                handler.post(()->{if(captureVersion==frameVersion&&!running&&!starting&&!isDestroyed()){pausedFrame=blurred;render();}});
+            });
+        }
+        session++;running=false;starting=false;if(cameraProvider!=null)cameraProvider.unbindAll();if(root!=null)root.setKeepScreenOn(false);successFeedback=false;dismissRepeatWarning();scanGate.pause();render();}
     @Override public void onRequestPermissionsResult(int request,@NonNull String[] permissions,@NonNull int[] results){super.onRequestPermissionsResult(request,permissions,results);if(request==CAMERA_REQUEST){if(results.length>0&&results[0]==PackageManager.PERMISSION_GRANTED) {if(page==0)startCamera();}else message("Camera permission denied. You can add barcodes manually.");}}
     @Override public void onConfigurationChanged(@NonNull Configuration configuration){super.onConfigurationChanged(configuration);render();}
     @Override protected void onStop(){stopCamera();super.onStop();}

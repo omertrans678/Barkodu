@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3-beta
+
+- Updated Miuix icons, cards and About design.
+- Added paused camera blur and continuous list scrolling.
+- Fixed camera ratio and left-swipe deletion.
+
 ## 0.2-beta
 
 - Added swipe navigation and black/white themes.

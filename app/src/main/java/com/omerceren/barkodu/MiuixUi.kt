@@ -28,11 +28,15 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.clipRect
-import androidx.compose.ui.graphics.vector.*
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.*
+import top.yukonga.miuix.kmp.extra.SuperArrow
+import top.yukonga.miuix.kmp.extra.SuperSwitch
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.*
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.*
@@ -44,7 +48,6 @@ import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.theme.*
 import top.yukonga.miuix.kmp.extra.SuperDialog
 import top.yukonga.miuix.kmp.extra.SuperSpinner
-import top.yukonga.miuix.kmp.extra.SuperBottomSheet
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -61,17 +64,10 @@ private object Motion {
     fun <T> tween() = tween<T>(Normal, easing = Ease)
     fun <T> spring() = spring<T>(dampingRatio = 0.9f, stiffness = 550f)
 }
-// Small code-native icons; carrier artwork is isolated in CarrierIcon for later replacement.
-private fun glyph(name: String, lines: List<List<Float>>): ImageVector = ImageVector.Builder(name,24.dp,24.dp,24f,24f).apply {
-    lines.forEach { points -> path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 1.7f, strokeLineCap = StrokeCap.Round, strokeLineJoin = StrokeJoin.Round) {
-        moveTo(points[0],points[1]); for(i in 2 until points.size step 2) lineTo(points[i],points[i+1])
-    } }
-}.build()
-private val ScanIcon = glyph("Scan",listOf(listOf(3f,8f,3f,3f,8f,3f),listOf(16f,3f,21f,3f,21f,8f),listOf(3f,16f,3f,21f,8f,21f),listOf(16f,21f,21f,21f,21f,16f),listOf(7f,8f,7f,16f),listOf(11f,8f,11f,16f),listOf(16f,8f,16f,16f)))
-private val SaveIcon = glyph("Save",listOf(listOf(5f,3f,19f,3f,19f,21f,5f,21f,5f,3f),listOf(9f,8f,15f,8f),listOf(9f,12f,15f,12f),listOf(9f,16f,13f,16f)))
-private val SettingsIcon = glyph("Settings",listOf(listOf(4f,6f,20f,6f),listOf(4f,12f,20f,12f),listOf(4f,18f,20f,18f),listOf(8f,3f,8f,9f),listOf(16f,9f,16f,15f),listOf(10f,15f,10f,21f)))
-private val BoxIcon = glyph("Carrier",listOf(listOf(4f,7f,12f,3f,20f,7f,20f,17f,12f,21f,4f,17f,4f,7f,12f,11f,20f,7f),listOf(12f,11f,12f,21f)))
-private val DeleteIcon = glyph("Delete",listOf(listOf(4f,6f,20f,6f),listOf(8f,6f,8f,3f,16f,3f,16f,6f),listOf(6f,6f,7f,21f,17f,21f,18f,6f),listOf(10f,10f,10f,17f),listOf(14f,10f,14f,17f)))
+private val ScanIcon = MiuixIcons.Regular.Scan
+private val SaveIcon = MiuixIcons.Regular.FileDownloads
+private val SettingsIcon = MiuixIcons.Regular.Settings
+private val DeleteIcon = MiuixIcons.Regular.Delete
 
 class MiuixUi(private val activity: MainActivity) {
     private var revision by mutableIntStateOf(0)
@@ -81,29 +77,17 @@ class MiuixUi(private val activity: MainActivity) {
         setContent {
             val tick=revision
             val dark=when(activity.themeMode){1->true;2->false;else->isSystemInDarkTheme()}
-            SideEffect {
-                val background=if(dark) android.graphics.Color.BLACK else android.graphics.Color.WHITE
-                activity.window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(background))
-                activity.window.statusBarColor=background
-                activity.window.navigationBarColor=background
-                WindowCompat.getInsetsController(activity.window,activity.window.decorView).apply {
-                    isAppearanceLightStatusBars=!dark; isAppearanceLightNavigationBars=!dark
-                }
-            }
             val colors=if(dark) darkColorScheme(surface=Color.Black,background=Color.Black,primary=Color(0xFF7CAEFF),
                 surfaceContainer=Color(0xFF202020),secondaryContainer=Color(0xFF303030),onSecondaryContainer=Color.White,error=Color(0xFFFF8A80))
-                else lightColorScheme(surface=Color.White,background=Color.White,primary=Color(0xFF2868CC),
-                    surfaceContainer=Color(0xFFF2F2F2),secondaryContainer=Color(0xFFE6E6E6),onSecondaryContainer=Color(0xFF242424))
+                else lightColorScheme(surface=Color(0xFFF7F7F7),background=Color(0xFFF7F7F7),primary=Color(0xFF2868CC),
+                    surfaceContainer=Color.White,secondaryContainer=Color(0xFFF0F0F0),onSecondaryContainer=Color(0xFF242424))
             MiuixTheme(colors=colors) { App() }
         }
     }
     @Composable private fun Action(label:String, modifier:Modifier=Modifier, enabled:Boolean=true, onClick:()->Unit) {
         Button(onClick=onClick,modifier=modifier,enabled=enabled,minWidth=0.dp,minHeight=44.dp,
+            colors=if(label=="Add") ButtonDefaults.buttonColorsPrimary() else ButtonDefaults.buttonColors(),
             insideMargin=PaddingValues(horizontal=12.dp,vertical=10.dp)) { Text(label,fontSize=14.sp) }
-    }
-    @Composable private fun CarrierIcon(id:Int, modifier:Modifier=Modifier) {
-        // Replace this slot with the real asset for carrier id 0..3; stable IDs stay intact.
-        Icon(BoxIcon,contentDescription=null,modifier=modifier.size(24.dp),tint=Muted)
     }
     @Composable private fun App() {
         val tick=revision
@@ -151,13 +135,37 @@ class MiuixUi(private val activity: MainActivity) {
                 override suspend fun performAction(){if(pending!=null) activity.confirmRepeat(repeatId) else activity.undoNotice(noticeId)}
             }
         }
-        Scaffold(modifier=Modifier.nestedScroll(behavior.nestedScrollConnection),
-            topBar={ SmallTopAppBar(title=title,color=barColor,titleColor=MiuixTheme.colorScheme.onSurface,scrollBehavior=behavior,
-                navigationIcon={if(about) Text("‹",Modifier.clickable { if(license.isNotEmpty()) license="" else about=false }.semantics { contentDescription="Back" }.padding(16.dp),fontSize=28.sp)},
-                actions={if(page==0&&!about) Text("+",Modifier.clickable {error="";manual=true}.semantics {contentDescription="Add manually"}.padding(16.dp),fontSize=28.sp,color=Accent)} ) },
+        val aboutDark=when(activity.themeMode){1->true;2->false;else->isSystemInDarkTheme()}
+        val glow=if(about) {
+            val transition=rememberInfiniteTransition(label="About background")
+            val shift by transition.animateFloat(initialValue=0.15f,targetValue=0.85f,animationSpec=infiniteRepeatable(tween(18000,easing=LinearEasing),RepeatMode.Reverse),label="Background glow")
+            shift
+        } else 0.5f
+        val aboutBrush=Brush.verticalGradient(if(aboutDark) listOf(Color(0xFF101B49),Color(0xFF102963),Color(0xFF281D48)) else listOf(Color(0xFFE8E6FF),Color(0xFFFFE2EF),Color(0xFFF5E8F2)))
+        SideEffect {
+            val first=if(about) (if(aboutDark) 0xFF101B49 else 0xFFE8E6FF).toInt() else (if(aboutDark) android.graphics.Color.BLACK else 0xFFF7F7F7.toInt())
+            val last=if(about) (if(aboutDark) 0xFF281D48 else 0xFFF5E8F2).toInt() else first
+            activity.window.setBackgroundDrawable(if(about) android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,intArrayOf(first,last)) else android.graphics.drawable.ColorDrawable(first))
+            activity.window.statusBarColor=first;activity.window.navigationBarColor=last
+            WindowCompat.getInsetsController(activity.window,activity.window.decorView).apply {
+                isAppearanceLightStatusBars=!aboutDark;isAppearanceLightNavigationBars=!aboutDark
+            }
+        }
+        Scaffold(modifier=Modifier.nestedScroll(behavior.nestedScrollConnection).then(if(about) Modifier.background(aboutBrush).drawBehind {
+                drawRect(Brush.radialGradient(listOf(if(aboutDark) Color(0x443B60E2) else Color(0x55D8D7FF),Color.Transparent),center=Offset(size.width*glow,size.height*0.3f),radius=size.height*0.55f))
+                drawRect(Brush.radialGradient(listOf(if(aboutDark) Color(0x44382D73) else Color(0x55FFBAD7),Color.Transparent),center=Offset(size.width*(1-glow),size.height*0.7f),radius=size.height*0.5f))
+            } else Modifier),
+            containerColor=if(about) Color.Transparent else MiuixTheme.colorScheme.surface,
+            topBar={
+                if(about) SmallTopAppBar(title=if(license.isEmpty()) "" else "License",color=Color.Transparent,titleColor=MiuixTheme.colorScheme.onSurface,
+                    navigationIcon={IconButton(onClick={if(license.isNotEmpty()) license="" else about=false},modifier=Modifier.padding(horizontal=12.dp)) {Icon(MiuixIcons.Regular.Back,"Back",Modifier.size(26.dp))}})
+                else if(page==0) SmallTopAppBar(title=title,color=barColor,titleColor=MiuixTheme.colorScheme.onSurface,scrollBehavior=behavior,
+                    actions={IconButton(onClick={activity.pauseScanning();error="";manual=true},modifier=Modifier.padding(end=12.dp)) {Icon(MiuixIcons.Regular.Add,"Add manually",Modifier.size(26.dp),tint=Accent)}})
+                else TopAppBar(title=title,color=barColor,scrollBehavior=behavior)
+            },
             bottomBar={if(!about) NavigationBar(color=MiuixTheme.colorScheme.surface) {
                 listOf(ScanIcon,SaveIcon,SettingsIcon).forEachIndexed { index,icon -> NavigationBarItem(selected=page==index,
-                    onClick={if(index!=activity.page){requestedPage=index;activity.navigate(index)}},icon=icon,label=listOf("Scan","Save","Settings")[index])
+                    onClick={if(index!=activity.page){requestedPage=index;activity.navigate(index)}},icon=if(page==index) listOf(MiuixIcons.Heavy.Scan,MiuixIcons.Heavy.FileDownloads,MiuixIcons.Heavy.Settings)[index] else icon,label=listOf("Scan","Save","Settings")[index])
                 }
             }},
             snackbarHost={
@@ -169,59 +177,38 @@ class MiuixUi(private val activity: MainActivity) {
                 }
             }
         ) { insets ->
-            Box(Modifier.fillMaxSize().padding(insets).consumeWindowInsets(insets).background(MiuixTheme.colorScheme.surface)) {
+            Box(Modifier.fillMaxSize().padding(insets).consumeWindowInsets(insets).background(if(about) Color.Transparent else MiuixTheme.colorScheme.surface)) {
                 val pageContent: @Composable (Int) -> Unit = { destination ->
                     val renderTick=revision
                     when(destination) {
                         0 -> Scan(lists[model.active])
-                        1 -> Column(Modifier.fillMaxSize().verticalScroll(saveScroll).padding(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-                            Text("${model.items.size} barcodes ready",fontSize=14.sp,color=Muted)
+                        1 -> Column(Modifier.fillMaxSize().verticalScroll(saveScroll).padding(horizontal=16.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(20.dp)) {
+                            Text("${model.items.size} barcodes ready",Modifier.padding(horizontal=16.dp),fontSize=14.sp,color=Muted)
                             if(model.items.isEmpty()) Empty("Your saved list is empty","Scan a barcode or add one manually.")
-                            listOf(Triple("Excel","Save each barcode as a separate row","xlsx"),Triple("TXT","Save a plain text carrier list","txt"),Triple("Share","Send your list to another app","txt")).forEach { (name,summary,ext) ->
-                                LinkCard(name,summary,SaveIcon,model.items.isNotEmpty()) {activity.exportAction(ext,name=="Share")}
-                            }
-                            Spacer(Modifier.height(16.dp))
                             Card(Modifier.fillMaxWidth(),insideMargin=PaddingValues(0.dp)) {
-                                SuperSpinner(items=listOf(SpinnerEntry(title="Clear all…",summary="Remove all entries")),
-                                    selectedIndex=0,title="More actions",showValue=false,enabled=model.items.isNotEmpty(),
-                                    onSelectedIndexChange={clear=true})
+                                SuperArrow(title="Excel",summary="One barcode per row",enabled=model.items.isNotEmpty(),onClick={activity.exportAction("xlsx",false)})
+                                SuperArrow(title="TXT",summary="Plain text carrier list",enabled=model.items.isNotEmpty(),onClick={activity.exportAction("txt",false)})
+                                SuperArrow(title="Share",summary="Send your list to another app",enabled=model.items.isNotEmpty(),onClick={activity.exportAction("txt",true)})
+                            }
+                            Card(Modifier.fillMaxWidth(),insideMargin=PaddingValues(0.dp)) {
+                                SuperSpinner(items=listOf(SpinnerEntry(title="Clear all…",summary="Remove all entries")),selectedIndex=0,title="More actions",showValue=false,enabled=model.items.isNotEmpty(),onSelectedIndexChange={clear=true})
                             }
                         }
-                        2 -> Column(Modifier.fillMaxSize().verticalScroll(settingsScroll).padding(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-                            Text("v0.1-beta",fontSize=13.sp,color=Muted)
+                        2 -> Column(Modifier.fillMaxSize().verticalScroll(settingsScroll).padding(horizontal=16.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(20.dp)) {
+                            Text(versionLabel(),Modifier.padding(horizontal=16.dp),fontSize=14.sp,color=Muted)
                             Card(Modifier.fillMaxWidth(),insideMargin=PaddingValues(0.dp)) {
                                 SuperSpinner(items=listOf("System","Black","White").map {SpinnerEntry(title=it)},selectedIndex=activity.themeMode,
-                                    title="Theme",summary="Choose the app appearance",onSelectedIndexChange=activity::setThemeMode)
+                                    title="Theme",onSelectedIndexChange=activity::setThemeMode)
+                                SuperSwitch(checked=activity.isRepeatWarningEnabled,onCheckedChange=activity::setRepeatWarningEnabled,title="Repeat scan warning",
+                                    summary="Confirm before adding a barcode already in your list.")
                             }
-                            Card(Modifier.fillMaxWidth(),insideMargin=PaddingValues(18.dp)) {
-                                Row(verticalAlignment=Alignment.CenterVertically) {
-                                    Text("Repeat scan warning",Modifier.weight(1f),fontSize=16.sp)
-                                    Switch(checked=activity.isRepeatWarningEnabled,onCheckedChange=activity::setRepeatWarningEnabled)
-                                }
-                                Spacer(Modifier.height(10.dp))
-                                Text("Ask before adding a barcode already in your list. When off, a fresh repeat scan adds another card. A barcode held in view is always added only once.",fontSize=13.sp,color=Muted)
-                            }
-                            LinkCard("About","Barkodu · v0.1-beta",SettingsIcon) {about=true}
-                        }
-                        3 -> Column(Modifier.fillMaxSize().verticalScroll(aboutScroll).padding(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-                            if(license.isNotEmpty()) {
-                                Text(license,fontSize=13.sp,color=Muted)
-                            } else {
-                                Spacer(Modifier.height(24.dp))
-                                Image(painterResource(R.drawable.ic_launcher),contentDescription="Barkodu app icon",modifier=Modifier.size(96.dp).clip(RoundedCornerShape(24.dp)).align(Alignment.CenterHorizontally))
-                                Text("Barkodu",Modifier.align(Alignment.CenterHorizontally),fontSize=28.sp,fontWeight=FontWeight.Medium)
-                                Text("v0.1-beta",Modifier.align(Alignment.CenterHorizontally),fontSize=14.sp,color=Muted)
-                                Text("Ömer tarafından yapılmıştır.",Modifier.align(Alignment.CenterHorizontally),fontSize=14.sp,color=Muted)
-                                Spacer(Modifier.height(32.dp))
-                                Card(Modifier.fillMaxWidth(),insideMargin=PaddingValues(0.dp)) {
-                                    LinkRow("GitHub Source Code","GitHub") {activity.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://github.com/omertrans678/Barkodu")))}
-                                    LinkRow("License","Apache-2.0") {license=activity.assets.open("project-license.txt").bufferedReader().use {it.readText()}}
-                                }
-                                Card(Modifier.fillMaxWidth(),insideMargin=PaddingValues(0.dp)) {
-                                    LinkRow("Third-party Licenses","") {license=activity.assets.open("third-party-licenses.txt").bufferedReader().use {it.readText()}}
-                                }
+                            Card(Modifier.fillMaxWidth(),insideMargin=PaddingValues(0.dp)) {
+                                SuperArrow(title="About",endActions={Text("Barkodu",fontSize=14.sp,color=Muted)},onClick={activity.pauseScanning();about=true})
                             }
                         }
+                        3 -> if(license.isNotEmpty()) Column(Modifier.fillMaxSize().verticalScroll(aboutScroll).padding(20.dp)) {
+                            Text(license,fontSize=13.sp,color=Muted)
+                        } else About(aboutDark,aboutScroll,onLicense={license=activity.assets.open(it).bufferedReader().use {reader->reader.readText()}})
                     }
                 }
                 AnimatedContent(targetState=about,transitionSpec={fadeIn(Motion.tween()) togetherWith fadeOut(tween(Motion.Fast))},label="About") { showAbout ->
@@ -235,7 +222,7 @@ class MiuixUi(private val activity: MainActivity) {
                     if(activity.addManual(input)){input="";manual=false;keyboard?.hide()} else {error=activity.statusMessage;focus.requestFocus()}
                 } else focus.requestFocus()
             }
-            SuperBottomSheet(show=manual,title="Add manually",backgroundColor=Panel,onDismissRequest={manual=false;keyboard?.hide()}) {
+            SuperDialog(show=manual,title="Add manually",backgroundColor=Panel,onDismissRequest={manual=false;keyboard?.hide()}) {
                 Column(Modifier.fillMaxWidth().imePadding(),verticalArrangement=Arrangement.spacedBy(14.dp)) {
                     Text("Enter the barcode exactly as printed. Leading zeros are preserved.",fontSize=13.sp,color=Muted)
                     val errorColor by animateColorAsState(if(error.isEmpty()) Accent else Danger,Motion.tween(),label="Field error")
@@ -244,7 +231,10 @@ class MiuixUi(private val activity: MainActivity) {
                         backgroundColor=if(error.isEmpty()) MiuixTheme.colorScheme.secondaryContainer else MiuixTheme.colorScheme.errorContainer,
                         keyboardOptions=KeyboardOptions(capitalization=KeyboardCapitalization.Characters,keyboardType=KeyboardType.Ascii,imeAction=ImeAction.Done),keyboardActions=KeyboardActions(onDone={submit()}))
                     AnimatedVisibility(error.isNotEmpty(),enter=fadeIn(Motion.tween())+expandVertically(Motion.spring()),exit=fadeOut(Motion.tween())) {Text(error,color=Danger,fontSize=13.sp)}
-                    Action("Add",Modifier.fillMaxWidth(),onClick=submit)
+                    Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                        Action("Cancel",Modifier.weight(1f)){manual=false;keyboard?.hide()}
+                        Action("Add",Modifier.weight(1f),onClick=submit)
+                    }
                 }
                 LaunchedEffect(manual) {if(manual){focus.requestFocus();keyboard?.show()}}
             }
@@ -256,81 +246,108 @@ class MiuixUi(private val activity: MainActivity) {
             }
         }
     }
+    private fun versionLabel() = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
     @Composable private fun Scan(scroll:LazyListState) {
         val tick=revision
         val model=activity.model
         val rows=model.visible().map {it.copy()}
         val landscape=LocalConfiguration.current.screenWidthDp>LocalConfiguration.current.screenHeightDp
-        Column(Modifier.fillMaxSize().padding(horizontal=16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            Card(Modifier.fillMaxWidth(),insideMargin=PaddingValues(0.dp)) {
-                SuperSpinner(items=(0..3).map {id->SpinnerEntry(title=CargoModel.NAMES[id],icon={CarrierIcon(id,it)})},
-                    selectedIndex=model.selected.coerceAtLeast(0),title=if(model.selected<0) "Select carrier" else CargoModel.NAMES[model.selected],
-                    summary="Carrier to scan",showValue=false,startAction={CarrierIcon(model.selected)},onSelectedIndexChange=activity::selectCargo)
-            }
-            if(landscape) Row(Modifier.weight(1f),horizontalArrangement=Arrangement.spacedBy(16.dp)) {
-                Camera(Modifier.weight(0.42f).fillMaxHeight()); ListPanel(Modifier.weight(0.58f),rows,scroll)
+        LazyColumn(Modifier.fillMaxSize().testTag("scan-list"),state=scroll,contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+            if(landscape) item(key="wide-header") {
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
+                    Camera(Modifier.weight(0.36f).aspectRatio(16f/9f).testTag("camera-preview"))
+                    Column(Modifier.weight(0.64f),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                        CarrierPicker();CarrierTabs()
+                        Text("${rows.size} entries · ${model.items.size} total",Modifier.padding(horizontal=12.dp),fontSize=12.sp,color=Muted)
+                    }
+                }
             } else {
-                Camera(Modifier.fillMaxWidth().heightIn(min=110.dp,max=180.dp).height((LocalConfiguration.current.screenHeightDp*0.2f).dp))
-                ListPanel(Modifier.weight(1f),rows,scroll)
+                item(key="camera") {Camera(Modifier.fillMaxWidth().aspectRatio(16f/9f).testTag("camera-preview"))}
+                item(key="carrier") {CarrierPicker()}
+                item(key="tabs") {CarrierTabs()}
+                item(key="count") {Text("${rows.size} entries · ${model.items.size} total",Modifier.padding(horizontal=12.dp),fontSize=12.sp,color=Muted)}
             }
-            Text(activity.statusMessage,Modifier.padding(bottom=8.dp),fontSize=12.sp,color=if(activity.isSuccessFeedback) Accent else Muted,maxLines=1,overflow=TextOverflow.Ellipsis)
+            if(rows.isEmpty()) item(key="empty") {Empty("No barcodes yet","Scan or use + to add a barcode.")}
+            items(rows,key={it.id}) {item->BarcodeCard(item,Modifier.animateItem(fadeInSpec=Motion.tween(),placementSpec=Motion.spring(),fadeOutSpec=Motion.tween()))}
+            item(key="status") {Text(activity.statusMessage,Modifier.padding(8.dp),fontSize=12.sp,color=if(activity.isSuccessFeedback) Accent else Muted)}
         }
     }
     @Composable private fun Camera(modifier:Modifier) {
         val tick=revision
         val active=activity.isCameraActive
-        val overlay by animateFloatAsState(if(active) 0f else 1f,Motion.tween(),label="Camera blur")
+        val overlay by animateFloatAsState(if(active) 0f else 1f,Motion.tween(),label="Camera pause")
         val flash by animateFloatAsState(if(activity.isSuccessFeedback) 1f else 0f,Motion.tween(),label="Scan success")
-        val stripeColor=MiuixTheme.colorScheme.outline
+        val frame=activity.pausedFrame
+        DisposableEffect(Unit) {onDispose {activity.pauseScanning()}}
         Box(modifier.clip(Shape).background(Panel).clickable(enabled=activity.model.selected>=0,onClickLabel=if(active) "Stop scanning" else "Start scanning") {activity.toggleCamera()}
             .semantics {contentDescription=if(active) "Camera on. Tap to stop scanning" else "Camera off. Tap to scan";stateDescription=if(active) "On" else "Off"}) {
             AndroidView(factory={activity.createPreview()},modifier=Modifier.fillMaxSize())
             if(overlay>0f) {
                 Box(Modifier.fillMaxSize().graphicsLayer {alpha=overlay}.background(Panel)) {
-                    // No saved frame or running camera: progressive blur is applied to a neutral preview.
-                    for(band in 0..7) {
-                        val radius=if(Build.VERSION.SDK_INT>=31) (20f*(1-band/7f)*overlay).dp else 0.dp
-                        Canvas(Modifier.fillMaxSize().drawWithContent {clipRect(top=size.height*band/8f,bottom=size.height*(band+1)/8f){this@drawWithContent.drawContent()}}.blur(radius)) {
-                            for(x in 0..22) {
-                                val left=size.width*x/23f
-                                drawLine(stripeColor,Offset(left,size.height*0.18f),Offset(left,size.height*0.85f),strokeWidth=if(x%3==0) 7f else 3f)
-                            }
-                        }
-                    }
-                    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha=0.55f),Color.Black.copy(alpha=0.25f)))))
+                    if(frame!=null) Image(frame.asImageBitmap(),null,Modifier.fillMaxSize().testTag("paused-frame"),contentScale=ContentScale.Crop)
+                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha=if(frame==null) 0.3f else 0.25f)))
                 }
                 Column(Modifier.align(Alignment.Center).graphicsLayer {alpha=overlay},horizontalAlignment=Alignment.CenterHorizontally) {
                     Icon(ScanIcon,null,tint=Color.White,modifier=Modifier.size(30.dp))
                     Spacer(Modifier.height(10.dp));Text(if(activity.model.selected<0) "Select a carrier first" else "Tap to scan",color=Color.White,fontSize=16.sp)
                 }
             }
-            if(active) Text("Tap to stop",Modifier.align(Alignment.BottomCenter).padding(12.dp).background(Color(0xAA000000),RoundedCornerShape(10.dp)).padding(8.dp),color=Color.White,fontSize=12.sp)
+            if(active) Row(Modifier.align(Alignment.BottomCenter).padding(10.dp).background(Color(0x66000000),RoundedCornerShape(14.dp)).padding(horizontal=12.dp,vertical=6.dp),verticalAlignment=Alignment.CenterVertically) {
+                Icon(MiuixIcons.Regular.Pause,null,Modifier.size(16.dp),tint=Color.White)
+                Spacer(Modifier.width(8.dp));Text("Tap to stop",color=Color.White,fontSize=12.sp)
+            }
             if(flash>0f) Box(Modifier.fillMaxSize().border(2.dp,Accent.copy(alpha=flash),Shape))
         }
     }
-    @Composable private fun ListPanel(modifier:Modifier,rows:List<CargoModel.Item>,scroll:LazyListState) {
+    @Composable private fun CarrierPicker() {
         val tick=revision
         val model=activity.model
-        Column(modifier.fillMaxHeight().clip(Shape).background(Panel).padding(10.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MiuixTheme.colorScheme.surface).padding(4.dp).selectableGroup(),horizontalArrangement=Arrangement.spacedBy(3.dp)) {
-                CargoModel.NAMES.forEachIndexed { index, name ->
-                    val selected=model.active==index
-                    val color by animateColorAsState(if(selected) MiuixTheme.colorScheme.secondaryContainer else MiuixTheme.colorScheme.surface,Motion.tween(),label="Carrier tab")
-                    Column(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(color)
-                        .selectable(selected=selected,role=Role.Tab,onClick={activity.selectTab(index)})
-                        .semantics { contentDescription="$name, ${model.count(index)} barcodes" }
-                        .padding(vertical=10.dp),horizontalAlignment=Alignment.CenterHorizontally) {
-                        Text(name,fontSize=12.sp,fontWeight=if(selected) FontWeight.SemiBold else FontWeight.Normal,maxLines=1)
-                        Text("${model.count(index)}",fontSize=11.sp,color=Muted,maxLines=1)
-                    }
+        Card(Modifier.fillMaxWidth().testTag("scan-carrier"),insideMargin=PaddingValues(0.dp)) {
+            SuperSpinner(items=(0..3).map {id->SpinnerEntry(title=CargoModel.NAMES[id])},selectedIndex=model.selected.coerceAtLeast(0),
+                title=if(model.selected<0) "Select carrier" else CargoModel.NAMES[model.selected],summary="Carrier to scan",showValue=false,onSelectedIndexChange=activity::selectCargo)
+        }
+    }
+    @Composable private fun CarrierTabs() {
+        val tick=revision
+        val model=activity.model
+        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Panel).padding(4.dp).selectableGroup(),horizontalArrangement=Arrangement.spacedBy(3.dp)) {
+            CargoModel.NAMES.forEachIndexed { index, name ->
+                val selected=model.active==index
+                val color by animateColorAsState(if(selected) MiuixTheme.colorScheme.secondaryContainer else Panel,Motion.tween(),label="Carrier tab")
+                Column(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(color)
+                    .selectable(selected=selected,role=Role.Tab,onClick={activity.selectTab(index)})
+                    .semantics {contentDescription="$name, ${model.count(index)} barcodes"}.padding(vertical=10.dp),horizontalAlignment=Alignment.CenterHorizontally) {
+                    Text(name,fontSize=12.sp,fontWeight=if(selected) FontWeight.SemiBold else FontWeight.Normal,maxLines=1)
+                    Text("${model.count(index)}",fontSize=11.sp,color=Muted,maxLines=1)
                 }
             }
-            Text("${rows.size} entries · ${model.items.size} total",Modifier.padding(horizontal=8.dp),fontSize=12.sp,color=Muted)
-            Box(Modifier.weight(1f)) {
-                androidx.compose.animation.AnimatedVisibility(rows.isEmpty(),enter=fadeIn(Motion.tween()),exit=fadeOut(Motion.tween())) {Empty("No barcodes yet","Scan or use + to add a barcode.")}
-                LazyColumn(Modifier.fillMaxSize(),state=scroll,verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                    items(rows,key={it.id}) {item-> BarcodeCard(item,Modifier.animateItem(fadeInSpec=Motion.tween(),placementSpec=Motion.spring(),fadeOutSpec=Motion.tween()))}
+        }
+    }
+    // Adapted layout from compose-miuix-ui/miuix Example AboutPage (Apache-2.0).
+    @Composable private fun About(dark:Boolean,scroll:androidx.compose.foundation.ScrollState,onLicense:(String)->Unit) {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val viewport=maxHeight
+            val titleColor=if(dark) Color(0xFF99B4FF) else Color(0xFF792B8F)
+            val cardColor=if(dark) Color(0x66394E87) else Color.White.copy(alpha=0.7f)
+            Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal=16.dp),horizontalAlignment=Alignment.CenterHorizontally) {
+                Spacer(Modifier.height(viewport*0.13f))
+                val heroAlpha=(1f-scroll.value/600f).coerceIn(0f,1f)
+                Box(Modifier.size(92.dp).graphicsLayer {alpha=heroAlpha}.background(Color.White,RoundedCornerShape(26.dp)),contentAlignment=Alignment.Center) {
+                    Icon(MiuixIcons.Regular.Scan,"Barkodu app icon",Modifier.size(58.dp),tint=Color(0xFF246ADD))
                 }
+                Text("Barkodu",Modifier.padding(top=16.dp).graphicsLayer {alpha=heroAlpha},fontSize=35.sp,fontWeight=FontWeight.Medium,color=titleColor)
+                Text(versionLabel(),Modifier.padding(top=6.dp),fontSize=14.sp,color=Muted)
+                Text("Ömer tarafından yapılmıştır.",Modifier.padding(top=8.dp),fontSize=12.sp,color=Muted)
+                Spacer(Modifier.height(viewport*0.20f))
+                Card(Modifier.fillMaxWidth(),colors=CardDefaults.defaultColors(color=cardColor),insideMargin=PaddingValues(0.dp)) {
+                    LinkRow("View Source","GitHub") {activity.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://github.com/omertrans678/Barkodu")))}
+                }
+                Spacer(Modifier.height(16.dp))
+                Card(Modifier.fillMaxWidth(),colors=CardDefaults.defaultColors(color=cardColor),insideMargin=PaddingValues(0.dp)) {
+                    LinkRow("License","Apache-2.0") {onLicense("project-license.txt")}
+                    LinkRow("Third-party Licenses","") {onLicense("third-party-licenses.txt")}
+                }
+                Spacer(Modifier.height(32.dp))
             }
         }
     }
@@ -342,15 +359,15 @@ class MiuixUi(private val activity: MainActivity) {
 
         val move by animateFloatAsState(drag,Motion.spring(),label="Swipe")
         Box(modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MiuixTheme.colorScheme.errorContainer)) {
-            Row(Modifier.matchParentSize().padding(horizontal=20.dp),horizontalArrangement=if(drag>=0) Arrangement.Start else Arrangement.End,verticalAlignment=Alignment.CenterVertically) {
+            Row(Modifier.matchParentSize().padding(horizontal=20.dp),horizontalArrangement=Arrangement.End,verticalAlignment=Alignment.CenterVertically) {
                 Icon(DeleteIcon,"Delete",tint=Danger,modifier=Modifier.size(22.dp))
             }
             Card(Modifier.fillMaxWidth().testTag("barcode-${item.id}").offset{IntOffset(move.roundToInt(),0)}.semantics {
                 customActions=listOf(CustomAccessibilityAction("Delete barcode ${item.code}"){activity.removeItem(item);true})
             }.pointerInput(item.id) {
                 detectHorizontalDragGestures(onDragCancel={drag=0f},onDragEnd={
-                    if(abs(drag)>=threshold) activity.removeItem(item) else drag=0f
-                }) {change,amount->change.consume();drag+=amount}
+                    if(drag<=-threshold) activity.removeItem(item) else drag=0f
+                }) {change,amount->change.consume();drag=(drag+amount).coerceIn(-threshold*2,0f)}
             },colors=CardDefaults.defaultColors(color=MiuixTheme.colorScheme.secondaryContainer),insideMargin=PaddingValues(16.dp)) {
                 Text(item.code,fontSize=16.sp,fontWeight=FontWeight.Medium,maxLines=1,overflow=TextOverflow.Ellipsis)
             }
@@ -361,23 +378,7 @@ class MiuixUi(private val activity: MainActivity) {
             Icon(ScanIcon,null,modifier=Modifier.size(28.dp),tint=Muted);Text(title,fontSize=16.sp);Text(summary,fontSize=12.sp,color=Muted)
         }
     }
-    @Composable private fun LinkCard(title:String,summary:String,icon:ImageVector,enabled:Boolean=true,onClick:()->Unit) {
-        Card(Modifier.fillMaxWidth().alpha(if(enabled) 1f else 0.45f).semantics {if(!enabled) disabled()},onClick=if(enabled) onClick else null,
-            pressFeedbackType=PressFeedbackType.Sink,showIndication=true,insideMargin=PaddingValues(18.dp)) {
-            Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(16.dp)) {
-                Icon(icon,null,modifier=Modifier.size(24.dp),tint=Accent)
-                Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(5.dp)) {Text(title,fontSize=17.sp);Text(summary,fontSize=12.sp,color=Muted)}
-                Text("›",fontSize=24.sp,color=Muted)
-            }
-        }
-    }
     @Composable private fun LinkRow(title:String,value:String,onClick:()->Unit) {
-        Row(Modifier.fillMaxWidth().clickable(onClick=onClick).padding(18.dp),verticalAlignment=Alignment.CenterVertically) {
-            Text(title,Modifier.weight(1f),fontSize=16.sp);Text(value,fontSize=12.sp,color=Muted);Text(" ›",fontSize=24.sp,color=Muted)
-        }
+        SuperArrow(title=title,endActions={Text(value,fontSize=14.sp,color=Muted)},onClick=onClick)
     }
 }
-
-
-
-

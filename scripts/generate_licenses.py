@@ -22,7 +22,7 @@ for row in (root/'app/build/license-artifacts.tsv').read_text().splitlines():
         if 'classes.jar' in z.namelist():archives.append(ZipFile(BytesIO(z.read('classes.jar'))))
         for jar in archives:
             for f in jar.namelist():
-                if not f.endswith('/') and any(t in f.upper() for t in ['LICENSE','NOTICE','COPYRIGHT']):
+                if not f.endswith(('/', '.class', '.dex', '.so')) and any(t in f.upper() for t in ['LICENSE','NOTICE','COPYRIGHT']):
                     content=jar.read(f).decode('utf-8',errors='replace')
                     if len(content)>50:notices.append((key,f,content))
 lines=['Third-party Licenses','Generated from resolved runtime artifacts and their published Maven POMs.','Barkodu is licensed under Apache-2.0; dependencies retain their own licenses.','']

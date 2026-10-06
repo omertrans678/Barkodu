@@ -8,3 +8,4 @@ signing/
 *.apk
 *.keystore
 *.jks
+/.codex-remote-attachments/

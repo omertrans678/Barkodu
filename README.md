@@ -4,7 +4,9 @@ Native Android barcode scanner with Scan, Save and Settings pages.
 
 - Swipe navigation, black and white themes.
 - DHL, JET, TEX, ARAS and Unknown tabs with barcode counts.
-- Separate barcode cards, duplicate confirmation, swipe deletion and Undo.
+- Continuous barcode list, duplicate confirmation, left-swipe deletion and Undo.
+- Fixed 16:9 camera preview; paused frames are blurred on-device.
+- Miuix icons, grouped cards and gradient About page.
 - TXT/XLSX export and sharing.
 
 Package: `com.omerceren.barkodu` · Android 6.0+ (API 23).

@@ -25,8 +25,50 @@ class MiuixScreenTest {
         compose.onNode(hasSetTextAction()).performTextInput(code)
         compose.onNodeWithText("Add",useUnmergedTree=true).performClick();settle()
     }
+    @Test fun pauseDisplaysBlurredBitmapContent(){
+        compose.runOnIdle {
+            val a=compose.activity;a.selectCargo(2)
+            val raw=Bitmap.createBitmap(320,180,Bitmap.Config.ARGB_8888)
+            for(y in 0 until 180)for(x in 0 until 320)raw.setPixel(x,y,if((x/20+y/20)%2==0) android.graphics.Color.BLUE else android.graphics.Color.WHITE)
+            // No camera hardware in Robolectric: supply the processed frame to verify pause rendering.
+            val frameField=MainActivity::class.java.getDeclaredField("pausedFrame");frameField.isAccessible=true;frameField.set(a,FrameBlur.create(raw))
+            val runningField=MainActivity::class.java.getDeclaredField("running");runningField.isAccessible=true;runningField.setBoolean(a,true)
+            a.pauseScanning()
+        }
+        compose.waitUntil(10000) {org.robolectric.shadows.ShadowLooper.idleMainLooper();compose.activity.pausedFrame!=null};settle()
+        compose.onNodeWithTag("paused-frame",useUnmergedTree=true).assertIsDisplayed()
+        compose.runOnIdle {
+            val blue=android.graphics.Color.blue(compose.activity.pausedFrame!!.getPixel(20,20))
+            val red=android.graphics.Color.red(compose.activity.pausedFrame!!.getPixel(20,20))
+            assertEquals(255,blue);assertTrue(red>0&&red<255);assertFalse(compose.activity.isCameraActive)
+        }
+        screenshot("paused-camera-frame.png")
+    }
+    @Test fun cameraRemainsWideCarrierBelowAndRightSwipeCannotDelete(){
+        compose.runOnIdle {compose.activity.selectCargo(2);compose.activity.addManual("731234")};settle()
+        val bounds=compose.onNodeWithTag("camera-preview").fetchSemanticsNode().boundsInRoot
+        assertEquals(16f/9f,bounds.width/bounds.height,0.02f)
+        val carrier=compose.onNodeWithTag("scan-carrier").fetchSemanticsNode().boundsInRoot
+        assertTrue(carrier.top>=bounds.bottom)
+        val id=compose.activity.model.items[0].id
+        compose.onNodeWithTag("barcode-$id").performTouchInput {swipeRight()};settle()
+        compose.runOnIdle {assertEquals(1,compose.activity.model.items.size)}
+        compose.onNodeWithTag("barcode-$id").performTouchInput {swipeLeft()};settle()
+        compose.runOnIdle {assertEquals(0,compose.activity.model.items.size)}
+    }
+    @Test fun aboutUsesGradientIdentityAndLicenseCards(){
+        nav("Settings");compose.onNodeWithText("About").performClick();settle()
+        compose.onNodeWithText("Barkodu").assertIsDisplayed()
+        compose.onNodeWithText("View Source").assertIsDisplayed()
+        compose.onNodeWithText("Apache-2.0").assertIsDisplayed();screenshot("about-reference.png")
+        compose.onNodeWithText("License").performClick();settle()
+        compose.onNodeWithText("Apache License",substring=true).assertExists()
+        compose.onNodeWithContentDescription("Back").performClick();settle()
+        compose.onNodeWithText("View Source").assertIsDisplayed()
+    }
     @Test fun carrierTabsShowCountsAndKeepScannerSelectionIndependent(){
         compose.runOnIdle {compose.activity.selectCargo(2);compose.activity.addManual("731234")};settle()
+        screenshot("tabs-layout.png")
         for(name in CargoModel.NAMES) compose.onNodeWithContentDescription("$name, ${if(name=="TEX") 1 else 0} barcodes").assertIsDisplayed()
         compose.onNodeWithContentDescription("ARAS, 0 barcodes").performClick();settle()
         compose.runOnIdle {assertEquals(3,compose.activity.model.active);assertEquals(2,compose.activity.model.selected)}
@@ -89,7 +131,7 @@ class MiuixScreenTest {
         compose.runOnIdle {val activity=compose.activity;activity.confirmRepeat(1);assertEquals(2,activity.model.items.size)};settle()
         compose.onAllNodesWithText("7312345678").assertCountEquals(2)
         nav("Save");compose.onNodeWithText("Excel").assertIsDisplayed();screenshot("save.png")
-        nav("Settings");compose.onNodeWithText("v0.1-beta").assertIsDisplayed();screenshot("settings.png")
+        nav("Settings");compose.onNodeWithText("v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})").assertIsDisplayed();screenshot("settings.png")
         compose.onNodeWithText("About").performClick();settle()
         compose.onNodeWithText("Ömer tarafından yapılmıştır.").assertIsDisplayed();screenshot("about.png")
         compose.onNodeWithText("Third-party Licenses").performClick();settle()
@@ -153,7 +195,7 @@ class MiuixScreenTest {
             val a=compose.activity;a.selectCargo(2)
             repeat(100){a.addManual("73${100000+it}")}
         };settle()
-        compose.onNodeWithText("73100099").performTouchInput {swipeUp()};settle()
+        compose.onNodeWithTag("scan-list").performTouchInput {swipeUp()};settle()
         val first=compose.onAllNodes(hasText("731000",substring=true)).fetchSemanticsNodes().map {it.config[androidx.compose.ui.semantics.SemanticsProperties.Text].toString()}
         nav("Save");nav("Scan")
         val after=compose.onAllNodes(hasText("731000",substring=true)).fetchSemanticsNodes().map {it.config[androidx.compose.ui.semantics.SemanticsProperties.Text].toString()}
@@ -204,7 +246,7 @@ class MiuixScreenTest {
         compose.onNodeWithContentDescription("Camera on. Tap to stop scanning").performClick()
         record("camera-close",12)
         compose.onNodeWithContentDescription("Add manually").performClick()
-        record("bottom-sheet-open",12)
+        record("manual-dialog-open",12)
         compose.onNode(hasSetTextAction()).performTextInput("731234")
         compose.onNodeWithText("Add",useUnmergedTree=true).performClick()
         record("repeat-snackbar",12)
