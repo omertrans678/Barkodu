@@ -1,27 +1,26 @@
 # Barkodu
 
-Scan carrier barcodes with a camera or handheld scanner, organize them by carrier, and export Excel or TXT lists.
+Native Android barcode scanner with Scan, Save and Settings pages.
 
-## v0.1-beta
+- Swipe navigation, black and white themes.
+- DHL, JET, TEX, ARAS and Unknown tabs with barcode counts.
+- Separate barcode cards, duplicate confirmation, swipe deletion and Undo.
+- TXT/XLSX export and sharing.
 
-The first beta release includes an Android app and a browser interface.
+Package: `com.omerceren.barkodu` · Android 6.0+ (API 23).
 
-- CameraX and offline ML Kit scanning on Android 6+.
-- Carrier tabs, quantities, undo, and manual entry.
-- Miuix light/dark themes and portrait/landscape layouts.
-- Repeat scan protection with an optional persistent warning.
-- Excel/TXT export and sharing; leading zeroes are preserved.
+## Build
 
-Download `Barkodu-v0.1-beta-phone.apk` for ARM phones, or `Barkodu-v0.1-beta-universal.apk` for all supported architectures from [Releases](https://github.com/omertrans678/Barkodu/releases).
+Use JDK 21 and Android SDK 36. The Gradle wrapper downloads Gradle 9.1.0. Set `sdk.dir` in the ignored `local.properties` file.
 
-## Source and build
+```sh
+./gradlew testDebugUnitTest assembleRelease -PphoneApk
+```
 
-`KargoAndroid/` contains the Android application. Open it in Android Studio with JDK 17+, Android SDK 36 and Gradle 9.1.0. Run `gradle testDebugUnitTest assembleRelease`; add `-PphoneApk` for the ARM build.
+For your release signing key, pass `-PbarkoduKeystore=/absolute/path/barkodu-local.keystore` (current signing configuration uses the local Android development key). Without this property, an available ignored local key or the debug key is used. Configure private signing credentials before a production release.
 
-Local SDK paths, caches and signing keys are excluded from Git. When the local signing key is absent, release builds use a debug key. Updates must use the same signing key.
+Screenshots from UI tests are saved under `build/evidence`.
 
-`BarkodListe/` contains the web application. Serve it over HTTPS for camera access. Camera and Excel libraries require an internet connection.
+## License
 
-The Android suite includes 13 model, scan gate and UI tests. Real phone camera testing is pending.
-
-Miuix is licensed under Apache 2.0; see `KargoAndroid/app/src/main/assets/miuix-license.txt`.
+Copyright 2026 Omer Ceren. Licensed under [Apache-2.0](LICENSE). Dependency notices are included in the app's Third Party Licenses screen. Google ML Kit has separate terms.

@@ -1,9 +1,10 @@
-**/tooling/
-**/.gradle/
-**/.kotlin/
+.gradle/
+.kotlin/
 **/build/
-**/local.properties
-**/signing/
+local.properties
+signing/
+.idea/
+*.iml
 *.apk
 *.keystore
 *.jks
