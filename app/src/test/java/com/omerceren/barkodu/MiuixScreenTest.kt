@@ -19,7 +19,7 @@ import org.robolectric.annotation.GraphicsMode
 class MiuixScreenTest {
     @get:Rule val compose=createAndroidComposeRule<MainActivity>()
     private fun settle(){androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications();compose.mainClock.advanceTimeBy(500);compose.waitForIdle()}
-    private fun nav(name:String){compose.onNodeWithText(name).performClick();settle()}
+    private fun nav(name:String){compose.onNodeWithContentDescription(name).performClick();settle()}
     private fun manual(code:String){
         compose.onNodeWithContentDescription("Add manually").performClick();settle()
         compose.onNode(hasSetTextAction()).performTextInput(code)
@@ -69,11 +69,12 @@ class MiuixScreenTest {
     @Test fun carrierTabsShowCountsAndKeepScannerSelectionIndependent(){
         compose.runOnIdle {compose.activity.selectCargo(2);compose.activity.addManual("731234")};settle()
         screenshot("tabs-layout.png")
-        for(name in CargoModel.NAMES) compose.onNodeWithContentDescription("$name, ${if(name=="TEX") 1 else 0} barcodes").assertIsDisplayed()
-        compose.onNodeWithContentDescription("ARAS, 0 barcodes").performClick();settle()
+        compose.onNodeWithText("1 total \u00b7 0 DHL \u00b7 0 JET \u00b7 1 TEX \u00b7 0 ARAS").assertIsDisplayed()
+        compose.onNodeWithText("Unknown").assertDoesNotExist()
+        compose.onNode(hasText("ARAS") and hasClickAction()).performClick();settle()
         compose.runOnIdle {assertEquals(3,compose.activity.model.active);assertEquals(2,compose.activity.model.selected)}
         compose.onNodeWithText("731234").assertDoesNotExist()
-        compose.onNodeWithContentDescription("TEX, 1 barcodes").performClick();settle()
+        compose.onNode(hasText("TEX") and hasAnyAncestor(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.Role,androidx.compose.ui.semantics.Role.Tab)),useUnmergedTree=true).performClick();settle()
         compose.onNodeWithText("731234").assertIsDisplayed();screenshot("carrier-tabs.png")
     }
     @Test fun swipePagesAndNavigationKeepRecordsAndCameraStopped(){
@@ -87,8 +88,8 @@ class MiuixScreenTest {
         compose.runOnIdle {assertEquals(1,compose.activity.page)}
         nav("Scan");compose.onNodeWithText("731234").assertIsDisplayed()
         compose.mainClock.autoAdvance=false
-        compose.onNodeWithText("Save").performClick()
-        compose.onNodeWithText("Settings").performClick()
+        compose.onNodeWithContentDescription("Save").performClick()
+        compose.onNodeWithContentDescription("Settings").performClick()
         record("page-navigation",12)
         compose.mainClock.autoAdvance=true;settle()
         compose.runOnIdle {assertEquals(2,compose.activity.page)}
@@ -112,7 +113,7 @@ class MiuixScreenTest {
     }
     @Test fun spinnerManualValidationRepeatActionAndPages(){
         compose.onNodeWithText("Select carrier").performClick();settle()
-        compose.onNode(hasText("TEX") and hasAnyAncestor(hasClickAction()) and !hasAnyAncestor(hasContentDescription("TEX, 0 barcodes")),useUnmergedTree=true).performClick();settle()
+        compose.onAllNodesWithText("TEX",useUnmergedTree=true).onLast().performClick();settle()
         compose.runOnIdle {assertEquals(2,compose.activity.model.selected);assertEquals(0,compose.activity.model.active)}
         compose.onNodeWithContentDescription("Add manually").performClick();settle()
         compose.onNodeWithText("Add",useUnmergedTree=true).performClick();settle()
@@ -148,7 +149,7 @@ class MiuixScreenTest {
             a.closeRepeat(id);a.handleDecodedBarcode("731234",3600);assertNull(a.pendingRepeat);assertEquals(1,a.model.items.size)
             a.addManual("731234");val newId=a.pendingRepeat!!.id;a.closeRepeat(id);assertEquals(newId,a.pendingRepeat!!.id)
         }
-        compose.onNodeWithText("Close").performClick();settle()
+        compose.onNodeWithTag("notice").performTouchInput {swipeLeft()};settle()
         compose.runOnIdle {assertEquals(1,compose.activity.model.items.size);compose.activity.addManual("731234")}
         org.robolectric.shadows.ShadowLooper.idleMainLooper(11,java.util.concurrent.TimeUnit.SECONDS)
         settle()
@@ -182,9 +183,9 @@ class MiuixScreenTest {
     }
     @Test fun disabledWarningAndClearUndo(){
         compose.runOnIdle {val a=compose.activity;a.selectCargo(2);a.setRepeatWarningEnabled(false);a.addManual("731234");a.addManual("731234");assertEquals(2,a.model.items.size)}
-        nav("Settings");compose.onNode(isToggleable()).assertIsOff()
-        compose.activityRule.scenario.recreate();settle();compose.onNode(isToggleable()).assertIsOff()
-        nav("Save");compose.onNodeWithText("More actions").performClick();settle();compose.onNodeWithText("Clear all…").performClick();settle()
+        nav("Settings");compose.onAllNodes(isToggleable()).onFirst().assertIsOff()
+        compose.activityRule.scenario.recreate();settle();compose.onAllNodes(isToggleable()).onFirst().assertIsOff()
+        nav("Save");compose.onNodeWithText("Clear all").performClick();settle()
         compose.onNodeWithText("Clear",useUnmergedTree=true).performClick();settle()
         compose.onNodeWithText("Your saved list is empty").assertIsDisplayed()
         compose.onNodeWithText("Undo").performClick();settle()
@@ -210,7 +211,7 @@ class MiuixScreenTest {
     @Test @Config(sdk=[28]) fun oldAndroidAndDisabledMotionKeepActionsAvailable(){
         compose.runOnIdle {
             android.provider.Settings.Global.putFloat(compose.activity.contentResolver,"animator_duration_scale",0f)
-            compose.activity.selectCargo(0);compose.activity.addManual("001234")
+            compose.activity.selectCargo(0);compose.activity.setUnknownConfirmationEnabled(false);compose.activity.setUnknownSoundEnabled(false);compose.activity.addManual("001234")
         };settle()
         compose.onNodeWithText("Tap to scan").assertIsDisplayed()
         compose.onNodeWithText("001234").assertIsDisplayed()
@@ -218,7 +219,7 @@ class MiuixScreenTest {
         compose.onNodeWithText("001234").assertIsDisplayed()
     }
     @Test fun exportUsesSystemPickerAndCopiesDuplicateRows(){
-        compose.runOnIdle {val a=compose.activity;a.selectCargo(2);a.setRepeatWarningEnabled(false);a.addManual("001234");a.addManual("001234");a.exportAction("txt",false)}
+        compose.runOnIdle {val a=compose.activity;a.selectCargo(2);a.setRepeatWarningEnabled(false);a.setUnknownConfirmationEnabled(false);a.setUnknownSoundEnabled(false);a.addManual("001234");a.addManual("001234");a.exportAction("txt",false)}
         var intent:android.content.Intent?=null
         compose.waitUntil(10000) {
             org.robolectric.shadows.ShadowLooper.idleMainLooper()
@@ -251,7 +252,9 @@ class MiuixScreenTest {
         compose.onNodeWithText("Add",useUnmergedTree=true).performClick()
         record("repeat-snackbar",12)
         compose.mainClock.autoAdvance=true;settle();compose.mainClock.autoAdvance=false
-        compose.onNodeWithText("Close").performClick();record("repeat-close",12)
+        compose.mainClock.autoAdvance=true;settle()
+        compose.onNodeWithTag("notice").performTouchInput {swipeLeft()};settle()
+        compose.mainClock.autoAdvance=false;record("repeat-close",12)
         compose.mainClock.autoAdvance=true;settle();compose.mainClock.autoAdvance=false
         compose.runOnIdle {assertNull("Close must consume pending event",compose.activity.pendingRepeat)}
         val id=compose.activity.model.items[0].id
@@ -266,6 +269,40 @@ class MiuixScreenTest {
         compose.mainClock.autoAdvance=true;settle()
         compose.onNodeWithText("731234").assertIsDisplayed()
     }
+    @Test fun unknownConfirmationSettingsAndPausedFrameSurviveRecreation(){
+        compose.runOnIdle {val a=compose.activity;a.selectCargo(2);a.setUnknownSoundEnabled(false);a.addManual("001234");assertEquals(0,a.model.items.size)};settle()
+        compose.onNodeWithText("Unrecognized barcode").assertIsDisplayed()
+        screenshot("unknown-dialog.png")
+        compose.onNodeWithText("Cancel",useUnmergedTree=true).performClick();settle()
+        compose.runOnIdle {assertNull(compose.activity.pendingUnknown);compose.activity.addManual("001234")};settle()
+        compose.onNodeWithText("Add",useUnmergedTree=true).performClick();settle()
+        compose.runOnIdle {
+            val a=compose.activity;assertEquals(1,a.model.count(2));a.setUnknownConfirmationEnabled(false)
+            val frame=Bitmap.createBitmap(32,18,Bitmap.Config.ARGB_8888);frame.eraseColor(android.graphics.Color.BLUE);a.persistPausedFrame(frame)
+        }
+        compose.activityRule.scenario.recreate();settle()
+        compose.runOnIdle {
+            val a=compose.activity;assertFalse(a.isUnknownSoundEnabled);assertFalse(a.isUnknownConfirmationEnabled)
+            assertNotNull(a.pausedFrame);assertEquals(android.graphics.Color.BLUE,a.pausedFrame!!.getPixel(0,0))
+            a.addManual("991234");assertEquals(2,a.model.count(2));assertNull(a.pendingUnknown)
+        };settle()
+        compose.onNodeWithTag("paused-frame",useUnmergedTree=true).assertIsDisplayed()
+    }
+    @Test fun legacyUnknownRecordsMigrateWithoutLoss(){
+        compose.runOnIdle {
+            compose.activity.getPreferences(android.content.Context.MODE_PRIVATE).edit().putString("state", """{"selected":2,"active":4,"items":[{"code":"001234","cargo":4,"quantity":2}]}""").commit()
+        }
+        compose.activityRule.scenario.recreate();settle()
+        compose.runOnIdle {assertEquals(2,compose.activity.model.active);assertEquals(2,compose.activity.model.count(2))}
+        compose.onAllNodesWithText("001234").assertCountEquals(2)
+        compose.onNodeWithText("Unknown").assertDoesNotExist()
+    }
+    @Test fun manualRepeatNoticeDismissesByLeftSwipe(){
+        compose.runOnIdle {compose.activity.selectCargo(2)};settle()
+        manual("731234");manual("731234")
+        compose.onNodeWithTag("notice").performTouchInput {swipeLeft()};settle()
+        compose.runOnIdle {assertNull(compose.activity.pendingRepeat);assertEquals(1,compose.activity.model.items.size)}
+    }
     private fun record(name:String,count:Int,start:Int=0){
         repeat(count){frame->
             androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
@@ -276,7 +313,8 @@ class MiuixScreenTest {
     private fun screenshot(name:String){compose.runOnIdle {
         val view=compose.activity.window.decorView
         val image=Bitmap.createBitmap(view.width,view.height,Bitmap.Config.ARGB_8888)
-        view.draw(Canvas(image));val folder=File("../build/evidence");folder.mkdirs()
+        view.draw(Canvas(image))
+        val folder=File("../build/evidence");folder.mkdirs()
         val target=File(folder,name);target.parentFile!!.mkdirs()
         target.outputStream().use {image.compress(Bitmap.CompressFormat.PNG,100,it)}
     }}

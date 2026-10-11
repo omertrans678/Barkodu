@@ -3,11 +3,13 @@
 Native Android barcode scanner with Scan, Save and Settings pages.
 
 - Swipe navigation, black and white themes.
-- DHL, JET, TEX, ARAS and Unknown tabs with barcode counts.
+- DHL, JET, TEX and ARAS tabs with animated transitions and carrier totals.
 - Continuous barcode list, duplicate confirmation, left-swipe deletion and Undo.
-- Fixed 16:9 camera preview; paused frames are blurred on-device.
+- Fixed 16:9 camera preview; blurred paused frames survive app restarts.
 - Miuix icons, grouped cards and gradient About page.
-- TXT/XLSX export and sharing.
+- TXT/XLSX export and Share as TXT.
+- Native Miuix dialogs, buttons and swipe-dismissable notices.
+- Optional warning sound and confirmation for unrecognized barcodes. Accepted codes belong to the selected carrier.
 
 Package: `com.omerceren.barkodu` · Android 6.0+ (API 23).
 

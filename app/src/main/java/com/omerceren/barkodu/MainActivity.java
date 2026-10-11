@@ -37,6 +37,18 @@ public class MainActivity extends ComponentActivity {
     private PreviewView previewView;
     private android.graphics.Bitmap pausedFrame;
     private int frameVersion;
+    private boolean unknownSoundEnabled=true, unknownConfirmationEnabled=true;
+    private String pendingUnknown;
+    private int pendingUnknownCarrier;
+    public String getPendingUnknown(){return pendingUnknown;}
+    public boolean isUnknownSoundEnabled(){return unknownSoundEnabled;}
+    public boolean isUnknownConfirmationEnabled(){return unknownConfirmationEnabled;}
+    public void setUnknownSoundEnabled(boolean value){unknownSoundEnabled=value;getPreferences(MODE_PRIVATE).edit().putBoolean("unknownSound",value).apply();render();}
+    public void setUnknownConfirmationEnabled(boolean value){unknownConfirmationEnabled=value;getPreferences(MODE_PRIVATE).edit().putBoolean("unknownConfirmation",value).apply();render();}
+    public void resolveUnknown(boolean add){String code=pendingUnknown;int carrier=pendingUnknownCarrier;pendingUnknown=null;render();if(add&&code!=null)requestKnownAdd(code,carrier);}
+    void persistPausedFrame(android.graphics.Bitmap frame){
+        try {android.util.AtomicFile file=new android.util.AtomicFile(new File(getFilesDir(),"paused-frame.png"));FileOutputStream out=file.startWrite();try{if(!frame.compress(android.graphics.Bitmap.CompressFormat.PNG,100,out))throw new IOException();file.finishWrite(out);}catch(Exception e){file.failWrite(out);}}catch(Exception ignored){}
+    }
     public android.graphics.Bitmap getPausedFrame(){return pausedFrame;}
     private ProcessCameraProvider cameraProvider;
     private BarcodeScanner scanner;
@@ -64,6 +76,9 @@ public class MainActivity extends ComponentActivity {
         themeMode=getPreferences(MODE_PRIVATE).getInt("themeMode",0);
         if(themeMode<0||themeMode>2)themeMode=0;
         if(saved!=null){String pending=saved.getString("pendingExport");if(pending!=null)pendingExport=new File(pending);}
+        unknownSoundEnabled=getPreferences(MODE_PRIVATE).getBoolean("unknownSound",true);
+        unknownConfirmationEnabled=getPreferences(MODE_PRIVATE).getBoolean("unknownConfirmation",true);
+        try(InputStream frame=new android.util.AtomicFile(new File(getFilesDir(),"paused-frame.png")).openRead()){pausedFrame=android.graphics.BitmapFactory.decodeStream(frame);}catch(IOException ignored){}
         buildUi();render();
     }
     private MiuixUi ui;
@@ -109,16 +124,24 @@ public class MainActivity extends ComponentActivity {
         String code=CargoModel.normalize(raw);
         if(!CargoModel.valid(code)){message(code.isEmpty()?"Barcode is required.":"Use 3–64 letters or digits.");return false;}
         if(model.selected<0){message("Select a carrier first.");return false;}
+        if(pendingUnknown!=null)return false;
+        if(CargoModel.classify(code,model.selected)==CargoModel.UNKNOWN){
+            if(unknownSoundEnabled){android.media.ToneGenerator tone=new android.media.ToneGenerator(android.media.AudioManager.STREAM_NOTIFICATION,80);tone.startTone(android.media.ToneGenerator.TONE_PROP_NACK,200);handler.postDelayed(tone::release,300);}
+            if(unknownConfirmationEnabled){pendingUnknown=code;pendingUnknownCarrier=model.selected;render();return true;}
+        }
+        return requestKnownAdd(code,model.selected);
+    }
+    private boolean requestKnownAdd(String code,int carrier){
         boolean duplicate=false;for(CargoModel.Item item:model.items)if(item.code.equals(code)){duplicate=true;break;}
         if(duplicate&&repeatWarningEnabled){
-            if(!confirmation.offer(code,model.selected)){message("Resolve the current repeat warning first.");return false;}
+            if(!confirmation.offer(code,carrier)){message("Resolve the current repeat warning first.");return false;}
             dismissNotice();repeatWarningVisible=true;render();
             long id=confirmation.get().id;
             int timeout=10000;
             if(Build.VERSION.SDK_INT>=29){android.view.accessibility.AccessibilityManager accessibility=(android.view.accessibility.AccessibilityManager)getSystemService(ACCESSIBILITY_SERVICE);timeout=accessibility.getRecommendedTimeoutMillis(timeout,android.view.accessibility.AccessibilityManager.FLAG_CONTENT_TEXT|android.view.accessibility.AccessibilityManager.FLAG_CONTENT_CONTROLS);}
             resetWarning=()->closeRepeat(id);handler.postDelayed(resetWarning,timeout);return true;
         }
-        return addConfirmed(code,model.selected);
+        return addConfirmed(code,carrier);
     }
     void handleDecodedBarcode(String code,long now){
         ScanGate.Decision decision=scanGate.observe(code,now,repeatWarningEnabled);
@@ -172,6 +195,7 @@ public class MainActivity extends ComponentActivity {
             final int captureVersion=++frameVersion;
             cameraExecutor.execute(()->{
                 android.graphics.Bitmap blurred=FrameBlur.create(captured);
+                persistPausedFrame(blurred);
                 handler.post(()->{if(captureVersion==frameVersion&&!running&&!starting&&!isDestroyed()){pausedFrame=blurred;render();}});
             });
         }
@@ -182,7 +206,7 @@ public class MainActivity extends ComponentActivity {
     @Override protected void onDestroy(){handler.removeCallbacksAndMessages(null);if(scanner!=null)scanner.close();cameraExecutor.shutdown();fileExecutor.shutdown();super.onDestroy();}
     @Override protected void onSaveInstanceState(@NonNull Bundle out){if(pendingExport!=null)out.putString("pendingExport",pendingExport.getAbsolutePath());super.onSaveInstanceState(out);}
 
-    private void load(){try{JSONObject saved=new JSONObject(getPreferences(MODE_PRIVATE).getString("state","{}"));model.selected=saved.optInt("selected",-1);if(model.selected<0||model.selected>3)model.selected=-1;model.active=saved.optInt("active",model.selected>=0?model.selected:0);if(model.active<0||model.active>4)model.active=0;JSONArray rows=saved.optJSONArray("items");if(rows!=null)for(int i=0;i<rows.length();i++){JSONObject x=rows.getJSONObject(i);String code=CargoModel.normalize(x.optString("code"));int cargo=x.optInt("cargo",4),quantity=x.optInt("quantity",1);if(CargoModel.valid(code)&&cargo>=0&&cargo<=4&&quantity>0)for(int unit=0;unit<quantity;unit++)model.items.add(new CargoModel.Item(code,cargo,1));}}catch(JSONException ignored){}}
+    private void load(){try{JSONObject saved=new JSONObject(getPreferences(MODE_PRIVATE).getString("state","{}"));model.selected=saved.optInt("selected",-1);if(model.selected<0||model.selected>3)model.selected=-1;model.active=saved.optInt("active",model.selected>=0?model.selected:0);if(model.active<0||model.active>3)model.active=model.selected>=0?model.selected:0;JSONArray rows=saved.optJSONArray("items");if(rows!=null)for(int i=0;i<rows.length();i++){JSONObject x=rows.getJSONObject(i);String code=CargoModel.normalize(x.optString("code"));int cargo=x.optInt("cargo",4),quantity=x.optInt("quantity",1);if(CargoModel.valid(code)&&cargo>=0&&cargo<=4&&quantity>0)for(int unit=0;unit<quantity;unit++)model.items.add(new CargoModel.Item(code,cargo==4?(model.selected>=0?model.selected:0):cargo,1));}}catch(JSONException ignored){}}
     private void save(){try{JSONObject data=new JSONObject();data.put("selected",model.selected);data.put("active",model.active);JSONArray rows=new JSONArray();for(CargoModel.Item item:model.items){JSONObject x=new JSONObject();x.put("code",item.code);x.put("cargo",item.cargo);x.put("quantity",item.quantity);rows.put(x);}data.put("items",rows);getPreferences(MODE_PRIVATE).edit().putString("state",data.toString()).apply();}catch(JSONException error){message("Could not save. Export your list.");}}
     private String mime(String extension){return extension.equals("xlsx")?"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":"text/plain";}
     private void export(String extension,boolean share){

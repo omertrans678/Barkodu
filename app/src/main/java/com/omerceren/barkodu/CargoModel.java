@@ -3,7 +3,7 @@ package com.omerceren.barkodu;
 import java.util.*;
 
 public final class CargoModel {
-    public static final String[] NAMES = {"DHL", "JET", "TEX", "ARAS", "Unknown"};
+    public static final String[] NAMES = {"DHL", "JET", "TEX", "ARAS"};
     public static final String[][] PREFIXES = {{"416", "HTS"}, {"416", "H0", "HTS"}, {"73"}, {"72", "P0", "A0", "FL0"}};
     public static final int UNKNOWN=4;
     public int selected=-1, active=0;
@@ -29,7 +29,7 @@ public final class CargoModel {
     }
     public Item addForCarrier(String raw, int carrier){
         String code=normalize(raw);if(carrier<0||carrier>3||!valid(code))throw new IllegalArgumentException("Select a carrier and enter a valid barcode.");
-        int cargo=classify(code,carrier);
+        int cargo=carrier;
         Item next=new Item(code,cargo,1);
         Change c=new Change();c.previous=next.copy();push(c);
         items.add(0,next);active=cargo;return next;

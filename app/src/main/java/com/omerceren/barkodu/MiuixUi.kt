@@ -10,6 +10,9 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.layout.*
@@ -77,16 +80,14 @@ class MiuixUi(private val activity: MainActivity) {
         setContent {
             val tick=revision
             val dark=when(activity.themeMode){1->true;2->false;else->isSystemInDarkTheme()}
-            val colors=if(dark) darkColorScheme(surface=Color.Black,background=Color.Black,primary=Color(0xFF7CAEFF),
-                surfaceContainer=Color(0xFF202020),secondaryContainer=Color(0xFF303030),onSecondaryContainer=Color.White,error=Color(0xFFFF8A80))
-                else lightColorScheme(surface=Color(0xFFF7F7F7),background=Color(0xFFF7F7F7),primary=Color(0xFF2868CC),
-                    surfaceContainer=Color.White,secondaryContainer=Color(0xFFF0F0F0),onSecondaryContainer=Color(0xFF242424))
+            val colors=if(dark) darkColorScheme(surface=Color.Black,background=Color.Black)
+                else lightColorScheme()
             MiuixTheme(colors=colors) { App() }
         }
     }
     @Composable private fun Action(label:String, modifier:Modifier=Modifier, enabled:Boolean=true, onClick:()->Unit) {
         Button(onClick=onClick,modifier=modifier,enabled=enabled,minWidth=0.dp,minHeight=44.dp,
-            colors=if(label=="Add") ButtonDefaults.buttonColorsPrimary() else ButtonDefaults.buttonColors(),
+            colors=if(label=="Add"||label=="Clear"||label=="Confirm") ButtonDefaults.buttonColorsPrimary() else ButtonDefaults.buttonColors(),
             insideMargin=PaddingValues(horizontal=12.dp,vertical=10.dp)) { Text(label,fontSize=14.sp) }
     }
     @Composable private fun App() {
@@ -110,12 +111,11 @@ class MiuixUi(private val activity: MainActivity) {
         val focus=remember { FocusRequester() }
         val keyboard=LocalSoftwareKeyboardController.current
         // Hoisted outside page transitions: tab navigation never resets list position.
-        val lists=List(5) { rememberLazyListState() }
+        val lists=List(4) { rememberLazyListState() }
         val settingsScroll=rememberScrollState()
         val saveScroll=rememberScrollState()
         val aboutScroll=rememberScrollState()
         val behavior=MiuixScrollBehavior()
-        val title=if(about) "About" else listOf("Scan","Save","Settings")[page]
         val scrollDistance = if(about) aboutScroll.value else if(page==0)
             lists[model.active].firstVisibleItemIndex*80+lists[model.active].firstVisibleItemScrollOffset
             else if(page==1) saveScroll.value else settingsScroll.value
@@ -159,9 +159,9 @@ class MiuixUi(private val activity: MainActivity) {
             topBar={
                 if(about) SmallTopAppBar(title=if(license.isEmpty()) "" else "License",color=Color.Transparent,titleColor=MiuixTheme.colorScheme.onSurface,
                     navigationIcon={IconButton(onClick={if(license.isNotEmpty()) license="" else about=false},modifier=Modifier.padding(horizontal=12.dp)) {Icon(MiuixIcons.Regular.Back,"Back",Modifier.size(26.dp))}})
-                else if(page==0) SmallTopAppBar(title=title,color=barColor,titleColor=MiuixTheme.colorScheme.onSurface,scrollBehavior=behavior,
+                else if(page==0) SmallTopAppBar(title="",color=barColor,titleColor=MiuixTheme.colorScheme.onSurface,scrollBehavior=behavior,
                     actions={IconButton(onClick={activity.pauseScanning();error="";manual=true},modifier=Modifier.padding(end=12.dp)) {Icon(MiuixIcons.Regular.Add,"Add manually",Modifier.size(26.dp),tint=Accent)}})
-                else TopAppBar(title=title,color=barColor,scrollBehavior=behavior)
+                else SmallTopAppBar(title="",color=barColor,scrollBehavior=behavior)
             },
             bottomBar={if(!about) NavigationBar(color=MiuixTheme.colorScheme.surface) {
                 listOf(ScanIcon,SaveIcon,SettingsIcon).forEachIndexed { index,icon -> NavigationBarItem(selected=page==index,
@@ -170,10 +170,24 @@ class MiuixUi(private val activity: MainActivity) {
             }},
             snackbarHost={
                 AnimatedVisibility(pending!=null||activity.notice.isNotEmpty(),enter=fadeIn(Motion.tween())+slideInVertically(Motion.spring()){it/2},exit=fadeOut(Motion.tween())) {
-                    Row(Modifier.fillMaxWidth().padding(horizontal=8.dp).background(MiuixTheme.colorScheme.secondaryContainer,RoundedCornerShape(16.dp)).semantics {liveRegion=LiveRegionMode.Polite},verticalAlignment=Alignment.CenterVertically) {
-                        Snackbar(snackbarData,Modifier.weight(1f),colors=SnackbarDefaults.snackbarColors(containerColor=MiuixTheme.colorScheme.secondaryContainer,actionContentColor=Accent))
-                        Text("Close",Modifier.clickable {if(pending!=null) activity.closeRepeat(repeatId) else activity.dismissNotice()}.padding(horizontal=12.dp,vertical=18.dp),fontSize=12.sp,color=Muted)
-                    }
+                    var noticeDrag by remember(repeatId,noticeId) {mutableFloatStateOf(0f)}
+                    val noticeOffset by animateFloatAsState(noticeDrag,Motion.spring(),label="Notice swipe")
+                    Box(Modifier.fillMaxWidth().padding(horizontal=8.dp).testTag("notice").offset {IntOffset(noticeOffset.roundToInt(),0)}
+                        .pointerInput(repeatId,noticeId) {
+                            awaitEachGesture {
+                                val down=awaitFirstDown(requireUnconsumed=false,pass=PointerEventPass.Initial)
+                                var distance=0f
+                                do {
+                                    val event=awaitPointerEvent(PointerEventPass.Initial)
+                                    val change=event.changes.firstOrNull {it.id==down.id} ?: break
+                                    distance+=change.position.x-change.previousPosition.x
+                                    if(distance < -viewConfiguration.touchSlop) {change.consume();noticeDrag=distance}
+                                } while(change.pressed)
+                                if(distance < -100.dp.toPx()) {if(pending!=null) activity.closeRepeat(repeatId) else activity.dismissNotice()}
+                                noticeDrag=0f
+                            }
+                        }) { Snackbar(snackbarData,Modifier.fillMaxWidth()) }
+
                 }
             }
         ) { insets ->
@@ -181,26 +195,30 @@ class MiuixUi(private val activity: MainActivity) {
                 val pageContent: @Composable (Int) -> Unit = { destination ->
                     val renderTick=revision
                     when(destination) {
-                        0 -> Scan(lists[model.active])
+                        0 -> Column(Modifier.fillMaxSize()) { Text("Scan",Modifier.padding(horizontal=24.dp,vertical=8.dp),fontSize=30.sp); Scan(lists[model.active]) }
                         1 -> Column(Modifier.fillMaxSize().verticalScroll(saveScroll).padding(horizontal=16.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(20.dp)) {
+                            Text("Save",fontSize=30.sp)
                             Text("${model.items.size} barcodes ready",Modifier.padding(horizontal=16.dp),fontSize=14.sp,color=Muted)
                             if(model.items.isEmpty()) Empty("Your saved list is empty","Scan a barcode or add one manually.")
                             Card(Modifier.fillMaxWidth(),insideMargin=PaddingValues(0.dp)) {
                                 SuperArrow(title="Excel",summary="One barcode per row",enabled=model.items.isNotEmpty(),onClick={activity.exportAction("xlsx",false)})
                                 SuperArrow(title="TXT",summary="Plain text carrier list",enabled=model.items.isNotEmpty(),onClick={activity.exportAction("txt",false)})
-                                SuperArrow(title="Share",summary="Send your list to another app",enabled=model.items.isNotEmpty(),onClick={activity.exportAction("txt",true)})
+                                SuperArrow(title="Share as TXT",summary="Send your list to another app",enabled=model.items.isNotEmpty(),onClick={activity.exportAction("txt",true)})
                             }
                             Card(Modifier.fillMaxWidth(),insideMargin=PaddingValues(0.dp)) {
-                                SuperSpinner(items=listOf(SpinnerEntry(title="Clear all…",summary="Remove all entries")),selectedIndex=0,title="More actions",showValue=false,enabled=model.items.isNotEmpty(),onSelectedIndexChange={clear=true})
+                                SuperArrow(title="Clear all",summary="Remove all saved barcodes",enabled=model.items.isNotEmpty(),onClick={clear=true})
                             }
                         }
                         2 -> Column(Modifier.fillMaxSize().verticalScroll(settingsScroll).padding(horizontal=16.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(20.dp)) {
+                            Text("Settings",Modifier.padding(horizontal=16.dp),fontSize=30.sp)
                             Text(versionLabel(),Modifier.padding(horizontal=16.dp),fontSize=14.sp,color=Muted)
                             Card(Modifier.fillMaxWidth(),insideMargin=PaddingValues(0.dp)) {
                                 SuperSpinner(items=listOf("System","Black","White").map {SpinnerEntry(title=it)},selectedIndex=activity.themeMode,
                                     title="Theme",onSelectedIndexChange=activity::setThemeMode)
                                 SuperSwitch(checked=activity.isRepeatWarningEnabled,onCheckedChange=activity::setRepeatWarningEnabled,title="Repeat scan warning",
                                     summary="Confirm before adding a barcode already in your list.")
+                                SuperSwitch(checked=activity.isUnknownSoundEnabled,onCheckedChange=activity::setUnknownSoundEnabled,title="Unrecognized barcode sound")
+                                SuperSwitch(checked=activity.isUnknownConfirmationEnabled,onCheckedChange=activity::setUnknownConfirmationEnabled,title="Confirm unrecognized barcodes",summary="Ask before adding to the selected carrier.")
                             }
                             Card(Modifier.fillMaxWidth(),insideMargin=PaddingValues(0.dp)) {
                                 SuperArrow(title="About",endActions={Text("Barkodu",fontSize=14.sp,color=Muted)},onClick={activity.pauseScanning();about=true})
@@ -211,9 +229,9 @@ class MiuixUi(private val activity: MainActivity) {
                         } else About(aboutDark,aboutScroll,onLicense={license=activity.assets.open(it).bufferedReader().use {reader->reader.readText()}})
                     }
                 }
-                AnimatedContent(targetState=about,transitionSpec={fadeIn(Motion.tween()) togetherWith fadeOut(tween(Motion.Fast))},label="About") { showAbout ->
+                AnimatedContent(targetState=about,transitionSpec={ (slideInHorizontally(Motion.tween()){if(targetState) it else -it}+fadeIn(Motion.tween())) togetherWith (slideOutHorizontally(Motion.tween()){if(targetState) -it else it}+fadeOut(Motion.tween())) },label="About") { showAbout ->
                     if(showAbout) pageContent(3) else HorizontalPager(state=pager,modifier=Modifier.fillMaxSize().testTag("pages"),
-                        userScrollEnabled=!manual&&!clear&&pending==null) {destination->pageContent(destination)}
+                        userScrollEnabled=!manual&&!clear&&pending==null&&activity.pendingUnknown==null) {destination->pageContent(destination)}
                 }
             }
             val submit: () -> Unit = {
@@ -222,7 +240,7 @@ class MiuixUi(private val activity: MainActivity) {
                     if(activity.addManual(input)){input="";manual=false;keyboard?.hide()} else {error=activity.statusMessage;focus.requestFocus()}
                 } else focus.requestFocus()
             }
-            SuperDialog(show=manual,title="Add manually",backgroundColor=Panel,onDismissRequest={manual=false;keyboard?.hide()}) {
+            SuperDialog(show=manual,title="Add manually",onDismissRequest={manual=false;keyboard?.hide()}) {
                 Column(Modifier.fillMaxWidth().imePadding(),verticalArrangement=Arrangement.spacedBy(14.dp)) {
                     Text("Enter the barcode exactly as printed. Leading zeros are preserved.",fontSize=13.sp,color=Muted)
                     val errorColor by animateColorAsState(if(error.isEmpty()) Accent else Danger,Motion.tween(),label="Field error")
@@ -238,6 +256,12 @@ class MiuixUi(private val activity: MainActivity) {
                 }
                 LaunchedEffect(manual) {if(manual){focus.requestFocus();keyboard?.show()}}
             }
+            SuperDialog(show=activity.pendingUnknown!=null,title="Unrecognized barcode",summary="This barcode does not match the selected carrier. Add it anyway?",onDismissRequest={activity.resolveUnknown(false)}) {
+                Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                    Action("Cancel",Modifier.weight(1f)){activity.resolveUnknown(false)}
+                    Action("Add",Modifier.weight(1f)){activity.resolveUnknown(true)}
+                }
+            }
             SuperDialog(show=clear,title="Clear all lists?",summary="Remove all barcodes. Undo will restore them.",onDismissRequest={clear=false}) {
                 Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                     Action("Cancel",Modifier.weight(1f)){clear=false}
@@ -251,6 +275,18 @@ class MiuixUi(private val activity: MainActivity) {
         val tick=revision
         val model=activity.model
         val rows=model.visible().map {it.copy()}
+        val counts="${model.items.size} total · ${model.count(0)} DHL · ${model.count(1)} JET · ${model.count(2)} TEX · ${model.count(3)} ARAS"
+        val slide=remember {Animatable(0f)}
+        var previousTab by remember {mutableIntStateOf(model.active)}
+        LaunchedEffect(model.active) {
+            if(previousTab!=model.active) {
+                val direction=if(model.active>previousTab) 1f else -1f
+                previousTab=model.active
+                slide.snapTo(direction)
+                slide.animateTo(0f,Motion.tween())
+            }
+        }
+        val rowMotion=Modifier.graphicsLayer {translationX=slide.value*size.width;alpha=1f-abs(slide.value)}
         val landscape=LocalConfiguration.current.screenWidthDp>LocalConfiguration.current.screenHeightDp
         LazyColumn(Modifier.fillMaxSize().testTag("scan-list"),state=scroll,contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
             if(landscape) item(key="wide-header") {
@@ -258,17 +294,17 @@ class MiuixUi(private val activity: MainActivity) {
                     Camera(Modifier.weight(0.36f).aspectRatio(16f/9f).testTag("camera-preview"))
                     Column(Modifier.weight(0.64f),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                         CarrierPicker();CarrierTabs()
-                        Text("${rows.size} entries · ${model.items.size} total",Modifier.padding(horizontal=12.dp),fontSize=12.sp,color=Muted)
+                        Text(counts,Modifier.padding(horizontal=12.dp),fontSize=12.sp,color=Muted)
                     }
                 }
             } else {
                 item(key="camera") {Camera(Modifier.fillMaxWidth().aspectRatio(16f/9f).testTag("camera-preview"))}
                 item(key="carrier") {CarrierPicker()}
                 item(key="tabs") {CarrierTabs()}
-                item(key="count") {Text("${rows.size} entries · ${model.items.size} total",Modifier.padding(horizontal=12.dp),fontSize=12.sp,color=Muted)}
+                item(key="count") {Text(counts,Modifier.padding(horizontal=12.dp),fontSize=12.sp,color=Muted)}
             }
-            if(rows.isEmpty()) item(key="empty") {Empty("No barcodes yet","Scan or use + to add a barcode.")}
-            items(rows,key={it.id}) {item->BarcodeCard(item,Modifier.animateItem(fadeInSpec=Motion.tween(),placementSpec=Motion.spring(),fadeOutSpec=Motion.tween()))}
+            if(rows.isEmpty()) item(key="empty") {Box(rowMotion){Empty("No barcodes yet","Scan or use + to add a barcode.")}}
+            items(rows,key={it.id}) {item->BarcodeCard(item,Modifier.animateItem(fadeInSpec=Motion.tween(),placementSpec=Motion.spring(),fadeOutSpec=Motion.tween()).then(rowMotion))}
             item(key="status") {Text(activity.statusMessage,Modifier.padding(8.dp),fontSize=12.sp,color=if(activity.isSuccessFeedback) Accent else Muted)}
         }
     }
@@ -310,19 +346,9 @@ class MiuixUi(private val activity: MainActivity) {
     @Composable private fun CarrierTabs() {
         val tick=revision
         val model=activity.model
-        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Panel).padding(4.dp).selectableGroup(),horizontalArrangement=Arrangement.spacedBy(3.dp)) {
-            CargoModel.NAMES.forEachIndexed { index, name ->
-                val selected=model.active==index
-                val color by animateColorAsState(if(selected) MiuixTheme.colorScheme.secondaryContainer else Panel,Motion.tween(),label="Carrier tab")
-                Column(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(color)
-                    .selectable(selected=selected,role=Role.Tab,onClick={activity.selectTab(index)})
-                    .semantics {contentDescription="$name, ${model.count(index)} barcodes"}.padding(vertical=10.dp),horizontalAlignment=Alignment.CenterHorizontally) {
-                    Text(name,fontSize=12.sp,fontWeight=if(selected) FontWeight.SemiBold else FontWeight.Normal,maxLines=1)
-                    Text("${model.count(index)}",fontSize=11.sp,color=Muted,maxLines=1)
-                }
-            }
-        }
+        TabRow(tabs=CargoModel.NAMES.take(4).toList(),selectedTabIndex=model.active.coerceIn(0,3),onTabSelected=activity::selectTab)
     }
+
     // Adapted layout from compose-miuix-ui/miuix Example AboutPage (Apache-2.0).
     @Composable private fun About(dark:Boolean,scroll:androidx.compose.foundation.ScrollState,onLicense:(String)->Unit) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -358,9 +384,9 @@ class MiuixUi(private val activity: MainActivity) {
 
 
         val move by animateFloatAsState(drag,Motion.spring(),label="Swipe")
-        Box(modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MiuixTheme.colorScheme.errorContainer)) {
+        Box(modifier.fillMaxWidth().clip(Shape).background(if(move < -0.5f) Color(0xFFCC0000) else Color.Transparent)) {
             Row(Modifier.matchParentSize().padding(horizontal=20.dp),horizontalArrangement=Arrangement.End,verticalAlignment=Alignment.CenterVertically) {
-                Icon(DeleteIcon,"Delete",tint=Danger,modifier=Modifier.size(22.dp))
+                Icon(DeleteIcon,"Delete",tint=Color.White,modifier=Modifier.size(22.dp))
             }
             Card(Modifier.fillMaxWidth().testTag("barcode-${item.id}").offset{IntOffset(move.roundToInt(),0)}.semantics {
                 customActions=listOf(CustomAccessibilityAction("Delete barcode ${item.code}"){activity.removeItem(item);true})
