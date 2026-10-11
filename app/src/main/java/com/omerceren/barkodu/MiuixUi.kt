@@ -5,6 +5,8 @@ import android.net.Uri
 import android.os.Build
 import android.view.View
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
+import kotlinx.coroutines.CancellationException
 import androidx.core.view.WindowCompat
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -95,12 +97,11 @@ class MiuixUi(private val activity: MainActivity) {
         val model=activity.model
         val page=activity.page
         val pager=rememberPagerState(initialPage=page,pageCount={3})
-        var requestedPage by remember {mutableStateOf<Int?>(null)}
-        LaunchedEffect(page){
-            if(pager.currentPage!=page || pager.currentPageOffsetFraction!=0f) pager.animateScrollToPage(page,animationSpec=Motion.tween())
-            if(requestedPage==page)requestedPage=null
-        }
-        LaunchedEffect(pager){snapshotFlow {pager.settledPage}.drop(1).collect {if(requestedPage==null&&activity.page!=it)activity.navigate(it)}}
+        val scope=rememberCoroutineScope()
+        val navigation=remember(pager,scope) {DemoPagerNavigation(pager,scope)}
+        LaunchedEffect(page){if(page!=navigation.selectedPage)navigation.animateToPage(page)}
+        LaunchedEffect(pager){snapshotFlow {pager.currentPage}.collect {navigation.syncPage()}}
+        LaunchedEffect(pager){snapshotFlow {pager.settledPage}.drop(1).collect {if(activity.page!=it)activity.navigate(it)}}
         LaunchedEffect(pager){snapshotFlow {pager.isScrollInProgress}.collect {if(it&&activity.isCameraActive)activity.pauseScanning()}}
         var about by rememberSaveable { mutableStateOf(false) }
         var license by rememberSaveable { mutableStateOf("") }
@@ -121,7 +122,7 @@ class MiuixUi(private val activity: MainActivity) {
             else if(page==1) saveScroll.value else settingsScroll.value
         val barProgress by animateFloatAsState((scrollDistance/80f).coerceIn(0f,1f),Motion.tween(),label="Progressive title")
         val barColor=lerp(MiuixTheme.colorScheme.surface,Panel,barProgress)
-        BackHandler(about) { if(license.isNotEmpty()) license="" else about=false }
+        BackHandler(about&&license.isNotEmpty()) {license=""}
         val pending=activity.pendingRepeat
         val repeatId=pending?.id ?: -1L
         val noticeId=activity.noticeId
@@ -141,7 +142,16 @@ class MiuixUi(private val activity: MainActivity) {
             val shift by transition.animateFloat(initialValue=0.15f,targetValue=0.85f,animationSpec=infiniteRepeatable(tween(18000,easing=LinearEasing),RepeatMode.Reverse),label="Background glow")
             shift
         } else 0.5f
-        val aboutBrush=Brush.verticalGradient(if(aboutDark) listOf(Color(0xFF101B49),Color(0xFF102963),Color(0xFF281D48)) else listOf(Color(0xFFE8E6FF),Color(0xFFFFE2EF),Color(0xFFF5E8F2)))
+        val aboutTransition=remember {Animatable(0f)}
+        val aboutProgress=aboutTransition.value
+        LaunchedEffect(about) {aboutTransition.animateTo(if(about) 1f else 0f,Motion.spring())}
+        PredictiveBackHandler(about&&license.isEmpty()) {events->
+            try {
+                events.collect {aboutTransition.snapTo(1f-it.progress)}
+                about=false
+            } catch(cancelled:CancellationException) {aboutTransition.animateTo(1f,Motion.spring())}
+        }
+        val aboutBrush=Brush.verticalGradient(if(aboutDark) listOf(Color(0xFF101B49),Color(0xFF102963),Color(0xFF281D48)) else listOf(Color(0xFFE8E6FF),Color(0xFFFFE2EF),Color(0xFFD7ECF6)))
         SideEffect {
             val first=if(about) (if(aboutDark) 0xFF101B49 else 0xFFE8E6FF).toInt() else (if(aboutDark) android.graphics.Color.BLACK else 0xFFF7F7F7.toInt())
             val last=if(about) (if(aboutDark) 0xFF281D48 else 0xFFF5E8F2).toInt() else first
@@ -151,26 +161,30 @@ class MiuixUi(private val activity: MainActivity) {
                 isAppearanceLightStatusBars=!aboutDark;isAppearanceLightNavigationBars=!aboutDark
             }
         }
-        Scaffold(modifier=Modifier.nestedScroll(behavior.nestedScrollConnection).then(if(about) Modifier.background(aboutBrush).drawBehind {
-                drawRect(Brush.radialGradient(listOf(if(aboutDark) Color(0x443B60E2) else Color(0x55D8D7FF),Color.Transparent),center=Offset(size.width*glow,size.height*0.3f),radius=size.height*0.55f))
-                drawRect(Brush.radialGradient(listOf(if(aboutDark) Color(0x44382D73) else Color(0x55FFBAD7),Color.Transparent),center=Offset(size.width*(1-glow),size.height*0.7f),radius=size.height*0.5f))
-            } else Modifier),
-            containerColor=if(about) Color.Transparent else MiuixTheme.colorScheme.surface,
-            topBar={
-                if(about) SmallTopAppBar(title=if(license.isEmpty()) "" else "License",color=Color.Transparent,titleColor=MiuixTheme.colorScheme.onSurface,
-                    navigationIcon={IconButton(onClick={if(license.isNotEmpty()) license="" else about=false},modifier=Modifier.padding(horizontal=12.dp)) {Icon(MiuixIcons.Regular.Back,"Back",Modifier.size(26.dp))}})
-                else if(page==0) SmallTopAppBar(title="",color=barColor,titleColor=MiuixTheme.colorScheme.onSurface,scrollBehavior=behavior,
-                    actions={IconButton(onClick={activity.pauseScanning();error="";manual=true},modifier=Modifier.padding(end=12.dp)) {Icon(MiuixIcons.Regular.Add,"Add manually",Modifier.size(26.dp),tint=Accent)}})
-                else SmallTopAppBar(title="",color=barColor,scrollBehavior=behavior)
+        Box(Modifier.fillMaxSize()) {
+        // MiuixDefault: covered page moves a quarter width and dims; the top page slides in.
+        Scaffold(modifier=Modifier.nestedScroll(behavior.nestedScrollConnection).then(if(about) Modifier.clearAndSetSemantics {} else Modifier).graphicsLayer {
+                translationX=-size.width*0.25f*aboutProgress
+                alpha=1f-0.1f*aboutProgress
             },
-            bottomBar={if(!about) NavigationBar(color=MiuixTheme.colorScheme.surface) {
-                listOf(ScanIcon,SaveIcon,SettingsIcon).forEachIndexed { index,icon -> NavigationBarItem(selected=page==index,
-                    onClick={if(index!=activity.page){requestedPage=index;activity.navigate(index)}},icon=if(page==index) listOf(MiuixIcons.Heavy.Scan,MiuixIcons.Heavy.FileDownloads,MiuixIcons.Heavy.Settings)[index] else icon,label=listOf("Scan","Save","Settings")[index])
+            containerColor=MiuixTheme.colorScheme.surface,
+            topBar={SmallTopAppBar(title="",color=barColor,scrollBehavior=behavior)},
+            bottomBar={NavigationBar(color=MiuixTheme.colorScheme.surface) {
+                listOf(ScanIcon,SaveIcon,SettingsIcon).forEachIndexed { index,icon ->
+                    val selected=navigation.selectedPage==index
+                    val focus=(1f-abs(pager.currentPage+pager.currentPageOffsetFraction-index)).coerceIn(0f,1f)
+                    val lift by animateFloatAsState(if(selected) 1f else 0f,Motion.spring(),label="Navigation icon $index")
+                    NavigationBarItem(selected=selected,onClick={activity.pauseScanning();navigation.animateToPage(index)},
+                        icon=if(selected) listOf(MiuixIcons.Heavy.Scan,MiuixIcons.Heavy.FileDownloads,MiuixIcons.Heavy.Settings)[index] else icon,
+                        label=listOf("Scan","Save","Settings")[index],modifier=Modifier.testTag("navigation-$index").semantics {this.selected=selected}.graphicsLayer {
+                            scaleX=0.96f+0.08f*focus;scaleY=scaleX;translationY=-2.dp.toPx()*lift
+                        })
                 }
             }},
             snackbarHost={
                 AnimatedVisibility(pending!=null||activity.notice.isNotEmpty(),enter=fadeIn(Motion.tween())+slideInVertically(Motion.spring()){it/2},exit=fadeOut(Motion.tween())) {
-                    var noticeDrag by remember(repeatId,noticeId) {mutableFloatStateOf(0f)}
+                    var noticeDrag by remember {mutableFloatStateOf(0f)}
+                    LaunchedEffect(repeatId,noticeId){if(pending!=null||activity.notice.isNotEmpty())noticeDrag=0f}
                     val noticeOffset by animateFloatAsState(noticeDrag,Motion.spring(),label="Notice swipe")
                     Box(Modifier.fillMaxWidth().padding(horizontal=8.dp).testTag("notice").offset {IntOffset(noticeOffset.roundToInt(),0)}
                         .pointerInput(repeatId,noticeId) {
@@ -181,21 +195,23 @@ class MiuixUi(private val activity: MainActivity) {
                                     val event=awaitPointerEvent(PointerEventPass.Initial)
                                     val change=event.changes.firstOrNull {it.id==down.id} ?: break
                                     distance+=change.position.x-change.previousPosition.x
-                                    if(distance < -viewConfiguration.touchSlop) {change.consume();noticeDrag=distance}
+                                    if(abs(distance) > viewConfiguration.touchSlop) {change.consume();noticeDrag=distance}
                                 } while(change.pressed)
-                                if(distance < -100.dp.toPx()) {if(pending!=null) activity.closeRepeat(repeatId) else activity.dismissNotice()}
-                                noticeDrag=0f
+                                if(abs(distance) > 100.dp.toPx()) {
+                                    noticeDrag=if(distance>0) size.width.toFloat() else -size.width.toFloat()
+                                    if(pending!=null) activity.closeRepeat(repeatId) else activity.dismissNotice()
+                                } else noticeDrag=0f
                             }
                         }) { Snackbar(snackbarData,Modifier.fillMaxWidth()) }
 
                 }
             }
         ) { insets ->
-            Box(Modifier.fillMaxSize().padding(insets).consumeWindowInsets(insets).background(if(about) Color.Transparent else MiuixTheme.colorScheme.surface)) {
+            Box(Modifier.fillMaxSize().padding(insets).consumeWindowInsets(insets).background(MiuixTheme.colorScheme.surface)) {
                 val pageContent: @Composable (Int) -> Unit = { destination ->
                     val renderTick=revision
                     when(destination) {
-                        0 -> Column(Modifier.fillMaxSize()) { Text("Scan",Modifier.padding(horizontal=24.dp,vertical=8.dp),fontSize=30.sp); Scan(lists[model.active]) }
+                        0 -> Column(Modifier.fillMaxSize()) { Text("Scan",Modifier.padding(horizontal=24.dp,vertical=8.dp),fontSize=30.sp); Scan(lists[model.active],onAdd={activity.pauseScanning();error="";manual=true}) }
                         1 -> Column(Modifier.fillMaxSize().verticalScroll(saveScroll).padding(horizontal=16.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(20.dp)) {
                             Text("Save",fontSize=30.sp)
                             Text("${model.items.size} barcodes ready",Modifier.padding(horizontal=16.dp),fontSize=14.sp,color=Muted)
@@ -224,15 +240,11 @@ class MiuixUi(private val activity: MainActivity) {
                                 SuperArrow(title="About",endActions={Text("Barkodu",fontSize=14.sp,color=Muted)},onClick={activity.pauseScanning();about=true})
                             }
                         }
-                        3 -> if(license.isNotEmpty()) Column(Modifier.fillMaxSize().verticalScroll(aboutScroll).padding(20.dp)) {
-                            Text(license,fontSize=13.sp,color=Muted)
-                        } else About(aboutDark,aboutScroll,onLicense={license=activity.assets.open(it).bufferedReader().use {reader->reader.readText()}})
                     }
                 }
-                AnimatedContent(targetState=about,transitionSpec={ (slideInHorizontally(Motion.tween()){if(targetState) it else -it}+fadeIn(Motion.tween())) togetherWith (slideOutHorizontally(Motion.tween()){if(targetState) -it else it}+fadeOut(Motion.tween())) },label="About") { showAbout ->
-                    if(showAbout) pageContent(3) else HorizontalPager(state=pager,modifier=Modifier.fillMaxSize().testTag("pages"),
-                        userScrollEnabled=!manual&&!clear&&pending==null&&activity.pendingUnknown==null) {destination->pageContent(destination)}
-                }
+                HorizontalPager(state=pager,modifier=Modifier.fillMaxSize().testTag("pages"),
+                    flingBehavior=PagerDefaults.flingBehavior(state=pager,snapAnimationSpec=Motion.spring()),
+                    userScrollEnabled=!manual&&!clear&&pending==null&&activity.pendingUnknown==null) {destination->pageContent(destination)}
             }
             val submit: () -> Unit = {
                 error=when {input.isBlank()->"Barcode is required."; !CargoModel.valid(input)->"Use 3–64 letters or digits."; else->""}
@@ -269,13 +281,32 @@ class MiuixUi(private val activity: MainActivity) {
                 }
             }
         }
+        if(aboutProgress>0f||about) {
+            Box(Modifier.matchParentSize().background(Color.Black.copy(alpha=0.5f*aboutProgress)))
+            Scaffold(modifier=Modifier.fillMaxSize().graphicsLayer {
+                    translationX=((1f-aboutProgress)*size.width).roundToInt().toFloat()
+                    shape=RoundedCornerShape(topStart=28.dp,bottomStart=28.dp)
+                    clip=aboutProgress<0.999f
+                }.background(aboutBrush).drawBehind {
+                    drawRect(Brush.radialGradient(listOf(if(aboutDark) Color(0x443B60E2) else Color(0x99D8D2FF),Color.Transparent),center=Offset(size.width*glow,size.height*0.2f),radius=size.height*0.7f))
+                    drawRect(Brush.radialGradient(listOf(if(aboutDark) Color(0x44382D73) else Color(0xBBFFD0E3),Color.Transparent),center=Offset(size.width*(1-glow),size.height*0.5f),radius=size.height*0.6f))
+                },containerColor=Color.Transparent,
+                topBar={SmallTopAppBar(title=if(license.isEmpty()) "" else "License",color=Color.Transparent,
+                    navigationIcon={IconButton(onClick={if(license.isNotEmpty())license="" else about=false},modifier=Modifier.padding(horizontal=12.dp)){Icon(MiuixIcons.Regular.Back,"Back",Modifier.size(26.dp))}})}
+            ) {aboutInsets->
+                Box(Modifier.fillMaxSize().padding(aboutInsets).testTag("about-screen")) {
+                    if(license.isNotEmpty()) Column(Modifier.fillMaxSize().verticalScroll(aboutScroll).padding(20.dp)){Text(license,fontSize=13.sp,color=Muted)}
+                    else About(aboutDark,aboutScroll,onLicense={license=activity.assets.open(it).bufferedReader().use {reader->reader.readText()}})
+                }
+            }
+        }
+        }
     }
     private fun versionLabel() = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
-    @Composable private fun Scan(scroll:LazyListState) {
+    @Composable private fun Scan(scroll:LazyListState,onAdd:()->Unit) {
         val tick=revision
         val model=activity.model
         val rows=model.visible().map {it.copy()}
-        val counts="${model.items.size} total · ${model.count(0)} DHL · ${model.count(1)} JET · ${model.count(2)} TEX · ${model.count(3)} ARAS"
         val slide=remember {Animatable(0f)}
         var previousTab by remember {mutableIntStateOf(model.active)}
         LaunchedEffect(model.active) {
@@ -293,15 +324,13 @@ class MiuixUi(private val activity: MainActivity) {
                 Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
                     Camera(Modifier.weight(0.36f).aspectRatio(16f/9f).testTag("camera-preview"))
                     Column(Modifier.weight(0.64f),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                        CarrierPicker();CarrierTabs()
-                        Text(counts,Modifier.padding(horizontal=12.dp),fontSize=12.sp,color=Muted)
+                        CarrierPicker();CarrierTabs(onAdd)
                     }
                 }
             } else {
                 item(key="camera") {Camera(Modifier.fillMaxWidth().aspectRatio(16f/9f).testTag("camera-preview"))}
                 item(key="carrier") {CarrierPicker()}
-                item(key="tabs") {CarrierTabs()}
-                item(key="count") {Text(counts,Modifier.padding(horizontal=12.dp),fontSize=12.sp,color=Muted)}
+                item(key="tabs") {CarrierTabs(onAdd)}
             }
             if(rows.isEmpty()) item(key="empty") {Box(rowMotion){Empty("No barcodes yet","Scan or use + to add a barcode.")}}
             items(rows,key={it.id}) {item->BarcodeCard(item,Modifier.animateItem(fadeInSpec=Motion.tween(),placementSpec=Motion.spring(),fadeOutSpec=Motion.tween()).then(rowMotion))}
@@ -311,8 +340,12 @@ class MiuixUi(private val activity: MainActivity) {
     @Composable private fun Camera(modifier:Modifier) {
         val tick=revision
         val active=activity.isCameraActive
-        val overlay by animateFloatAsState(if(active) 0f else 1f,Motion.tween(),label="Camera pause")
-        val flash by animateFloatAsState(if(activity.isSuccessFeedback) 1f else 0f,Motion.tween(),label="Scan success")
+        val ready=activity.isPreviewReady
+        val overlay by animateFloatAsState(if(ready) 0f else 1f,Motion.tween(),label="Camera pause")
+        val feedback=activity.scanFeedback
+        var lastFeedback by remember {mutableIntStateOf(1)}
+        if(feedback!=0)lastFeedback=feedback
+        val flash by animateFloatAsState(if(feedback!=0) 1f else 0f,Motion.tween(),label="Scan success")
         val frame=activity.pausedFrame
         DisposableEffect(Unit) {onDispose {activity.pauseScanning()}}
         Box(modifier.clip(Shape).background(Panel).clickable(enabled=activity.model.selected>=0,onClickLabel=if(active) "Stop scanning" else "Start scanning") {activity.toggleCamera()}
@@ -325,14 +358,18 @@ class MiuixUi(private val activity: MainActivity) {
                 }
                 Column(Modifier.align(Alignment.Center).graphicsLayer {alpha=overlay},horizontalAlignment=Alignment.CenterHorizontally) {
                     Icon(ScanIcon,null,tint=Color.White,modifier=Modifier.size(30.dp))
-                    Spacer(Modifier.height(10.dp));Text(if(activity.model.selected<0) "Select a carrier first" else "Tap to scan",color=Color.White,fontSize=16.sp)
+                    Spacer(Modifier.height(10.dp));Text(if(activity.model.selected<0) "Select a carrier first" else if(active&&!ready) "Starting camera…" else "Tap to scan",color=Color.White,fontSize=16.sp)
                 }
             }
-            if(active) Row(Modifier.align(Alignment.BottomCenter).padding(10.dp).background(Color(0x66000000),RoundedCornerShape(14.dp)).padding(horizontal=12.dp,vertical=6.dp),verticalAlignment=Alignment.CenterVertically) {
+            if(ready) Row(Modifier.align(Alignment.BottomCenter).padding(10.dp).background(Color(0x66000000),RoundedCornerShape(14.dp)).padding(horizontal=12.dp,vertical=6.dp),verticalAlignment=Alignment.CenterVertically) {
                 Icon(MiuixIcons.Regular.Pause,null,Modifier.size(16.dp),tint=Color.White)
                 Spacer(Modifier.width(8.dp));Text("Tap to stop",color=Color.White,fontSize=12.sp)
             }
-            if(flash>0f) Box(Modifier.fillMaxSize().border(2.dp,Accent.copy(alpha=flash),Shape))
+            if(flash>0f) {
+                val signal=if(lastFeedback==2) Color(0xFFD50000) else Color(0xFF00C853)
+                Box(Modifier.fillMaxSize().testTag("scan-feedback").semantics {stateDescription=if(lastFeedback==2) "Unrecognized" else "Recognized"}
+                    .border(12.dp,signal.copy(alpha=flash*0.12f),Shape).border(8.dp,signal.copy(alpha=flash*0.24f),Shape).border(4.dp,signal.copy(alpha=flash),Shape))
+            }
         }
     }
     @Composable private fun CarrierPicker() {
@@ -343,10 +380,26 @@ class MiuixUi(private val activity: MainActivity) {
                 title=if(model.selected<0) "Select carrier" else CargoModel.NAMES[model.selected],summary="Carrier to scan",showValue=false,onSelectedIndexChange=activity::selectCargo)
         }
     }
-    @Composable private fun CarrierTabs() {
+    // Demo TabRowSection: grouped Card + native TabRow + horizontally paged content.
+    @Composable private fun CarrierTabs(onAdd:()->Unit) {
         val tick=revision
         val model=activity.model
-        TabRow(tabs=CargoModel.NAMES.take(4).toList(),selectedTabIndex=model.active.coerceIn(0,3),onTabSelected=activity::selectTab)
+        val compact=LocalConfiguration.current.screenWidthDp>LocalConfiguration.current.screenHeightDp
+        val tabs=remember {CargoModel.NAMES.toList()}
+        val pager=rememberPagerState(initialPage=model.active,pageCount={tabs.size})
+        LaunchedEffect(model.active) {if(pager.currentPage!=model.active)pager.animateScrollToPage(model.active,animationSpec=Motion.spring())}
+        LaunchedEffect(pager) {snapshotFlow {pager.settledPage}.drop(1).collect {if(model.active!=it)activity.selectTab(it)}}
+        Card(Modifier.fillMaxWidth().testTag("carrier-tabs-card"),insideMargin=PaddingValues(if(compact) 8.dp else 16.dp)) {
+            TabRow(tabs=tabs,selectedTabIndex=model.active,onTabSelected=activity::selectTab)
+            Row(Modifier.fillMaxWidth().padding(top=8.dp),verticalAlignment=Alignment.CenterVertically) {
+                Text("${model.items.size} total · ${model.count(0)} DHL · ${model.count(1)} JET · ${model.count(2)} TEX · ${model.count(3)} ARAS",Modifier.weight(1f),fontSize=11.sp,color=Muted)
+                IconButton(onClick=onAdd,modifier=Modifier.size(if(compact) 32.dp else 40.dp).testTag("add-barcode")) {Icon(MiuixIcons.Regular.Add,"Add manually",Modifier.size(24.dp),tint=Accent)}
+            }
+            if(!compact) HorizontalPager(state=pager,modifier=Modifier.fillMaxWidth().padding(top=12.dp).testTag("carrier-pages"),
+                flingBehavior=PagerDefaults.flingBehavior(state=pager,snapAnimationSpec=Motion.spring())) {destination->
+                Text("${tabs[destination]} barcodes",Modifier.fillMaxWidth(),fontSize=16.sp)
+            }
+        }
     }
 
     // Adapted layout from compose-miuix-ui/miuix Example AboutPage (Apache-2.0).

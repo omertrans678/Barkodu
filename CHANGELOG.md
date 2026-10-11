@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5-beta
+
+- Keep the paused blur visible until CameraX reports a streaming preview, then fade to live video.
+- Move Add manually from the top bar to the right of carrier totals below TabRow.
+- Allow notices and repeat warnings to dismiss in either swipe direction.
+- Follow the Demo pager navigation pattern: immediate tap selection, focus during swipes and animated navigation items.
+- Use full-screen About navigation with quarter-width parallax, dimming, rounded entry and predictive back.
+- Group native TabRow and horizontally paged carrier content in a Demo-style card.
+- Add thicker green recognized / red unrecognized scan feedback with a soft inner glow.
+
 ## 0.4-beta
 
 - Page titles slide with their pages; About uses a directional slide transition.

@@ -241,6 +241,7 @@ class MiuixScreenTest {
         // stopCamera and the Compose transition are real. This is a UI-state capture only.
         compose.runOnIdle {
             val field=MainActivity::class.java.getDeclaredField("running");field.isAccessible=true;field.setBoolean(compose.activity,true)
+            val ready=MainActivity::class.java.getDeclaredField("previewReady");ready.isAccessible=true;ready.setBoolean(compose.activity,true)
             compose.activity.navigate(0)
         }
         record("camera-open",12)
@@ -302,6 +303,67 @@ class MiuixScreenTest {
         manual("731234");manual("731234")
         compose.onNodeWithTag("notice").performTouchInput {swipeLeft()};settle()
         compose.runOnIdle {assertNull(compose.activity.pendingRepeat);assertEquals(1,compose.activity.model.items.size)}
+    }
+    @Test fun cameraKeepsPausedFrameUntilFirstLivePreview(){
+        compose.runOnIdle {
+            val a=compose.activity;a.selectCargo(2)
+            val bitmap=Bitmap.createBitmap(32,18,Bitmap.Config.ARGB_8888);bitmap.eraseColor(android.graphics.Color.BLUE)
+            val frame=MainActivity::class.java.getDeclaredField("pausedFrame");frame.isAccessible=true;frame.set(a,bitmap)
+            val starting=MainActivity::class.java.getDeclaredField("starting");starting.isAccessible=true;starting.setBoolean(a,true)
+            a.selectCargo(2)
+        };settle()
+        compose.onNodeWithTag("paused-frame",useUnmergedTree=true).assertIsDisplayed()
+        compose.onNodeWithText("Starting camera\u2026").assertIsDisplayed()
+        compose.runOnIdle {
+            val a=compose.activity
+            val running=MainActivity::class.java.getDeclaredField("running");running.isAccessible=true;running.setBoolean(a,true)
+            a.selectCargo(2)
+        };settle()
+        compose.onNodeWithTag("paused-frame",useUnmergedTree=true).assertIsDisplayed()
+        screenshot("camera-waiting-preview.png")
+        compose.runOnIdle {
+            val a=compose.activity
+            val ready=MainActivity::class.java.getDeclaredField("previewReady");ready.isAccessible=true;ready.setBoolean(a,true)
+            a.selectCargo(2)
+        };settle()
+        compose.onNodeWithTag("paused-frame",useUnmergedTree=true).assertDoesNotExist()
+        compose.onNodeWithText("Tap to stop").assertIsDisplayed()
+    }
+    @Test fun feedbackColorsAndRightSwipeDismissal(){
+        compose.runOnIdle {val a=compose.activity;a.selectCargo(2);a.addManual("731234");assertEquals(1,a.scanFeedback)};settle()
+        compose.onNodeWithTag("scan-feedback",useUnmergedTree=true).assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.StateDescription,"Recognized"))
+        screenshot("scan-green-feedback.png")
+        compose.runOnIdle {val a=compose.activity;a.setUnknownSoundEnabled(false);a.addManual("001234");assertEquals(2,a.scanFeedback)};settle()
+        compose.onNodeWithTag("scan-feedback",useUnmergedTree=true).assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.StateDescription,"Unrecognized"))
+        screenshot("scan-red-feedback.png")
+        compose.onNodeWithText("Cancel",useUnmergedTree=true).performClick();settle()
+        manual("731234")
+        compose.onNodeWithTag("notice").performTouchInput {swipeRight()};settle()
+        compose.runOnIdle {assertNull(compose.activity.pendingRepeat);assertEquals(1,compose.activity.model.items.size);compose.activity.clearAction()};settle()
+        compose.onNodeWithTag("notice").performTouchInput {swipeRight()};settle()
+        compose.runOnIdle {assertEquals("",compose.activity.notice)}
+    }
+    @Test fun navigationFocusChangesBeforeSwipeSettlesAndAboutSlidesEntireScreen(){
+        compose.mainClock.autoAdvance=false
+        val pages=compose.onNodeWithTag("pages")
+        pages.performTouchInput {down(androidx.compose.ui.geometry.Offset(width*0.9f,height*0.85f));moveBy(androidx.compose.ui.geometry.Offset(-width*0.7f,0f),250)}
+        compose.mainClock.advanceTimeBy(48);compose.waitForIdle()
+        compose.onNodeWithTag("navigation-1").assertIsSelected()
+        pages.performTouchInput {up()}
+        compose.mainClock.autoAdvance=true;settle()
+        nav("Settings")
+        compose.mainClock.autoAdvance=false
+        compose.onNodeWithText("About").performClick()
+        record("about-open",3)
+        compose.waitForIdle()
+        val screen=compose.onNodeWithTag("about-screen").fetchSemanticsNode().boundsInRoot
+        assertTrue("About must enter from the right",screen.left>0f&&screen.left<411f)
+        record("about-open",13,3)
+        compose.mainClock.autoAdvance=true;settle()
+        compose.onNodeWithText("Barkodu").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Back").performClick();settle()
+        compose.onNodeWithTag("navigation-2").assertIsSelected()
+        compose.onNodeWithTag("about-screen").assertDoesNotExist()
     }
     private fun record(name:String,count:Int,start:Int=0){
         repeat(count){frame->

@@ -52,7 +52,7 @@ public class MainActivity extends ComponentActivity {
     public android.graphics.Bitmap getPausedFrame(){return pausedFrame;}
     private ProcessCameraProvider cameraProvider;
     private BarcodeScanner scanner;
-    private boolean running=false, starting=false;
+    private boolean running=false, starting=false, previewReady=false;
     private int session=0;
     private final ScanGate scanGate=new ScanGate();
     private boolean repeatWarningEnabled=true, repeatWarningVisible=false;
@@ -95,6 +95,9 @@ public class MainActivity extends ComponentActivity {
     public String getStatusMessage(){return statusMessage;}
     public String getResolutionMessage(){return resolutionMessage;}
     public boolean isCameraActive(){return running||starting;}
+    public boolean isPreviewReady(){return running&&previewReady;}
+    private int scanFeedback;
+    public int getScanFeedback(){return scanFeedback;}
     public boolean isSuccessFeedback(){return successFeedback;}
     public boolean isRepeatWarningEnabled(){return repeatWarningEnabled;}
     public boolean isRepeatWarningVisible(){return repeatWarningVisible;}
@@ -126,9 +129,10 @@ public class MainActivity extends ComponentActivity {
         if(model.selected<0){message("Select a carrier first.");return false;}
         if(pendingUnknown!=null)return false;
         if(CargoModel.classify(code,model.selected)==CargoModel.UNKNOWN){
+            flashFeedback(2);
             if(unknownSoundEnabled){android.media.ToneGenerator tone=new android.media.ToneGenerator(android.media.AudioManager.STREAM_NOTIFICATION,80);tone.startTone(android.media.ToneGenerator.TONE_PROP_NACK,200);handler.postDelayed(tone::release,300);}
             if(unknownConfirmationEnabled){pendingUnknown=code;pendingUnknownCarrier=model.selected;render();return true;}
-        }
+        } else flashFeedback(1);
         return requestKnownAdd(code,model.selected);
     }
     private boolean requestKnownAdd(String code,int carrier){
@@ -148,7 +152,9 @@ public class MainActivity extends ComponentActivity {
         if(decision==ScanGate.Decision.ADD)requestAdd(code);
     }
     public PreviewView createPreview(){
-        previewView=new PreviewView(this);previewView.setImplementationMode(PreviewView.ImplementationMode.COMPATIBLE);previewView.setScaleType(PreviewView.ScaleType.FILL_CENTER);return previewView;
+        PreviewView view=new PreviewView(this);previewView=view;view.setImplementationMode(PreviewView.ImplementationMode.COMPATIBLE);view.setScaleType(PreviewView.ScaleType.FILL_CENTER);
+        view.getPreviewStreamState().observe(this,state->{if(previewView==view){boolean ready=running&&state==PreviewView.StreamState.STREAMING;if(previewReady!=ready){previewReady=ready;render();}}});
+        return view;
     }
     public void selectCargo(int id){model.selected=id;save();render();message(CargoModel.NAMES[id]+" selected.");}
     public void selectTab(int id){model.active=id;save();render();}
@@ -158,16 +164,16 @@ public class MainActivity extends ComponentActivity {
     public void clearAction(){ArrayList<CargoModel.Item> before=new ArrayList<>(model.items);dismissRepeatWarning();model.clear();save();showNotice("All lists cleared",()->{for(int i=0;i<before.size();i++)model.restore(before.get(i),i);});}
     public boolean addManual(String code){return requestAdd(code);}
     public void exportAction(String extension,boolean share){export(extension,share);}
-    private boolean addConfirmed(String raw,int carrier){try{CargoModel.Item item=model.addForCarrier(raw,carrier);render();save();message(CargoModel.NAMES[item.cargo]+" · Barcode added");flash();return true;}catch(IllegalArgumentException error){message(error.getMessage());return false;}}
-    private void flash(){
-        if(resetFeedback!=null)handler.removeCallbacks(resetFeedback);successFeedback=true;render();
-        resetFeedback=()->{successFeedback=false;render();};handler.postDelayed(resetFeedback,500);
+    private boolean addConfirmed(String raw,int carrier){try{CargoModel.Item item=model.addForCarrier(raw,carrier);render();save();message(CargoModel.NAMES[item.cargo]+" · Barcode added");flashFeedback(CargoModel.classify(raw,carrier)==CargoModel.UNKNOWN?2:1);return true;}catch(IllegalArgumentException error){message(error.getMessage());return false;}}
+    private void flashFeedback(int result){
+        if(resetFeedback!=null)handler.removeCallbacks(resetFeedback);scanFeedback=result;successFeedback=result==1;render();
+        resetFeedback=()->{scanFeedback=0;successFeedback=false;render();};handler.postDelayed(resetFeedback,850);
         android.os.Vibrator vibrator=(android.os.Vibrator)getSystemService(VIBRATOR_SERVICE);if(vibrator!=null&&vibrator.hasVibrator()){if(Build.VERSION.SDK_INT>=26)vibrator.vibrate(VibrationEffect.createOneShot(50,VibrationEffect.DEFAULT_AMPLITUDE));else vibrator.vibrate(50);}
     }
     private void startCamera(){
         if(model.selected<0){message("Select a carrier first.");return;}
         if(ContextCompat.checkSelfPermission(this,Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.CAMERA},CAMERA_REQUEST);return;}
-        starting=true;frameVersion++;int token=++session;render();message("Starting camera…");ListenableFuture<ProcessCameraProvider> future=ProcessCameraProvider.getInstance(this);
+        starting=true;previewReady=false;frameVersion++;int token=++session;render();message("Starting camera…");ListenableFuture<ProcessCameraProvider> future=ProcessCameraProvider.getInstance(this);
         future.addListener(()->{if(token!=session||!starting)return;try{cameraProvider=future.get();bindCamera(token);}catch(Exception error){stopCamera();message("Could not start the camera. Try again.");}},ContextCompat.getMainExecutor(this));
     }
     private void bindCamera(int token){
@@ -184,7 +190,7 @@ public class MainActivity extends ComponentActivity {
                 handleDecodedBarcode(code,SystemClock.elapsedRealtime());
             }).addOnFailureListener(error->{/* The next latest frame is retried. */}).addOnCompleteListener(task->image.close());
         });
-        cameraProvider.unbindAll();cameraProvider.bindToLifecycle(this,CameraSelector.DEFAULT_BACK_CAMERA,preview,analysis);running=true;starting=false;scanGate.pause();root.setKeepScreenOn(true);render();
+        cameraProvider.unbindAll();cameraProvider.bindToLifecycle(this,CameraSelector.DEFAULT_BACK_CAMERA,preview,analysis);running=true;starting=false;previewReady=previewView.getPreviewStreamState().getValue()==PreviewView.StreamState.STREAMING;scanGate.pause();root.setKeepScreenOn(true);render();
         android.util.Size size=analysis.getResolutionInfo()!=null?analysis.getResolutionInfo().getResolution():null;resolutionMessage=size==null?"Built-in barcode scanning":size.getWidth()+" × "+size.getHeight()+" · ML Kit";message("Camera on · Scan horizontally or vertically.");
     }
     private void stopCamera(){
@@ -199,7 +205,7 @@ public class MainActivity extends ComponentActivity {
                 handler.post(()->{if(captureVersion==frameVersion&&!running&&!starting&&!isDestroyed()){pausedFrame=blurred;render();}});
             });
         }
-        session++;running=false;starting=false;if(cameraProvider!=null)cameraProvider.unbindAll();if(root!=null)root.setKeepScreenOn(false);successFeedback=false;dismissRepeatWarning();scanGate.pause();render();}
+        session++;running=false;starting=false;previewReady=false;if(cameraProvider!=null)cameraProvider.unbindAll();if(root!=null)root.setKeepScreenOn(false);scanFeedback=0;successFeedback=false;dismissRepeatWarning();scanGate.pause();render();}
     @Override public void onRequestPermissionsResult(int request,@NonNull String[] permissions,@NonNull int[] results){super.onRequestPermissionsResult(request,permissions,results);if(request==CAMERA_REQUEST){if(results.length>0&&results[0]==PackageManager.PERMISSION_GRANTED) {if(page==0)startCamera();}else message("Camera permission denied. You can add barcodes manually.");}}
     @Override public void onConfigurationChanged(@NonNull Configuration configuration){super.onConfigurationChanged(configuration);render();}
     @Override protected void onStop(){stopCamera();super.onStop();}
