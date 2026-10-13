@@ -32,7 +32,9 @@ Screenshots from UI tests are saved under `build/evidence`.
 
 ## Scanning and validation
 
-Bundled [ZXing core](https://github.com/zxing/zxing) decodes CODE_128, CODE_39, CODE_93, ITF and CODABAR locally through CameraX. Three identical results spanning at least 120 ms are required before accepting a camera event. Brief missed frames do not erase consistent readings; conflicting values reset the candidate, and gaps longer than one second expire it. Hybrid and global brightness thresholds accommodate different camera lighting. Barcodes remain strings: leading zeros, case and meaningful characters are preserved in storage and TXT/XLSX exports.
+Bundled [ZXing core](https://github.com/zxing/zxing) decodes CODE_128, CODE_39, CODE_93, ITF and CODABAR locally through CameraX. Angled scan lines support tilted labels without allocating full rotated camera images. Three identical results spanning at least 120 ms are required before accepting a camera event. Brief missed frames do not erase consistent readings; conflicting values reset the candidate, and analyzed misses spanning more than one second expire it. Slow consecutive matching frames remain eligible. Hybrid and global brightness thresholds accommodate different camera lighting. Barcodes remain strings: leading zeros, case and meaningful characters are preserved in storage and TXT/XLSX exports.
+
+The camera uses the highest available resolution negotiation from v0.5. Its local status shows analyzed frame count and processing time, or the analysis exception type. These diagnostics reset when the camera stops and are neither saved nor transmitted. A live preview alone is not proof that barcode analysis is running.
 
 The confirmed business rule is **exactly 10 characters for DHL/JET codes beginning with 416 or 417**. Eleven-character variants are rejected, never shortened. HTS, TEX, ARAS and other prefixes have no invented fixed length; existing alphanumeric validation (3–64 characters) remains. Consistent decoding reduces isolated errors but cannot prove a barcode is complete where no business length or checksum rule exists.
 
@@ -54,7 +56,7 @@ Saving or sharing a file is an explicit user action. A chosen Android document p
 
 ## Verification
 
-The v0.6.1-beta build passes 63 Kotlin JUnit/Robolectric tests, debug lint with zero errors, and release assembly. Tests cover five decoder formats, rotation, cropped/strided camera buffers, intermittent decoding, length rules, repeat/consensus/delay state, haptics through Android shadows, persistence, native dropdown selection, multi-delete/Undo, a 1,000-entry scrolling list, TabRow insets, export strings, scroll preservation, UI navigation, themes, disabled animations and network-permission removal.
+The v0.6.2-beta build passes 65 Kotlin JUnit/Robolectric tests, debug lint with zero errors, and release assembly. Tests cover five decoder formats, vertical and tilted labels, cropped/strided camera buffers, slow/intermittent decoding, length rules, repeat/consensus/delay state, haptics through Android shadows, persistence, native dropdown selection, multi-delete/Undo, a 1,000-entry scrolling list, TabRow insets, export strings, scroll preservation, UI navigation, themes, disabled animations and network-permission removal.
 
 Physical optical decoding, vibration hardware, CameraX startup on a phone, camera shake under poor lighting and real-device predictive back remain device checks. See [the implementation report](IMPLEMENTATION_REPORT.md) for exact results and limits. Existing Gradle/Kotlin and Android API deprecation warnings remain; they do not prevent this build.
 

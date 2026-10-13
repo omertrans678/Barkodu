@@ -416,9 +416,12 @@ class MiuixUi(private val activity: MainActivity) {
                     Spacer(Modifier.height(10.dp));Text(if(activity.model.selected<0) activity.getString(R.string.select_carrier_first) else if(active&&!ready) activity.getString(R.string.camera_starting) else activity.getString(R.string.tap_to_scan),color=Color.White,fontSize=16.sp)
                 }
             }
-            if(ready) Row(Modifier.align(Alignment.BottomCenter).padding(10.dp).background(Color(0x66000000),RoundedCornerShape(14.dp)).padding(horizontal=12.dp,vertical=6.dp),verticalAlignment=Alignment.CenterVertically) {
-                Icon(MiuixIcons.Regular.Pause,null,Modifier.size(16.dp),tint=Color.White)
-                Spacer(Modifier.width(8.dp));Text(str(R.string.tap_to_stop),color=Color.White,fontSize=12.sp)
+            if(ready) Column(Modifier.align(Alignment.BottomCenter).padding(10.dp).background(Color(0x99000000),RoundedCornerShape(14.dp)).padding(horizontal=12.dp,vertical=6.dp),horizontalAlignment=Alignment.CenterHorizontally) {
+                Row(verticalAlignment=Alignment.CenterVertically) {
+                    Icon(MiuixIcons.Regular.Pause,null,Modifier.size(16.dp),tint=Color.White)
+                    Spacer(Modifier.width(8.dp));Text(str(R.string.tap_to_stop),color=Color.White,fontSize=12.sp)
+                }
+                if(activity.scannerStatus.isNotEmpty())Text(activity.scannerStatus,Modifier.testTag("scanner-status"),color=Color.White,fontSize=10.sp)
             }
             if(flash>0f) {
                 val signal=if(lastFeedback==2) Color(0xFFD50000) else Color(0xFF00C853)

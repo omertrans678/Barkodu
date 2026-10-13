@@ -2,6 +2,10 @@
   <string name="select_carrier_start">Select a carrier to start.</string>
   <string name="carrier_ready">Carrier ready. You can open the camera.</string>
   <string name="offline_scanning">Offline scanning</string>
+  <string name="waiting_camera_frames">Waiting for camera frames</string>
+  <string name="analyzing_camera_frames">Scanning · %1$d frames · %2$d ms</string>
+  <string name="camera_decode_detected">Detected · %1$d frames · %2$d ms</string>
+  <string name="camera_analysis_error">Camera analysis error: %1$s</string>
   <string name="carrier_selected">%1$s selected.</string>
   <string name="entries_deleted">%1$d barcodes deleted</string>
   <string name="barcode_deleted">Barcode deleted</string>

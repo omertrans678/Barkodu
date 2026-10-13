@@ -80,6 +80,8 @@ class MainActivity : ComponentActivity() {
         private set
     var resolutionMessage = ""
         private set
+    var scannerStatus = ""
+        private set
     var notice = ""
         private set
     var noticeId = 0L
@@ -270,17 +272,32 @@ class MainActivity : ComponentActivity() {
     private fun bindCamera(token: Int) {
         val view = previewView ?: return
         val provider = cameraProvider ?: return
-        val resolution = ResolutionSelector.Builder().setResolutionStrategy(ResolutionStrategy(android.util.Size(1920,1080),ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER)).build()
+        // Restore the resolution negotiation used by the known-working v0.5 camera pipeline.
+        val resolution = ResolutionSelector.Builder().setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY).build()
         val preview = Preview.Builder().setResolutionSelector(resolution).build().also {it.setSurfaceProvider(view.surfaceProvider)}
         val analysis = ImageAnalysis.Builder().setResolutionSelector(resolution).setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
+        var frames=0
+        var lastReport=0L
+        scannerStatus=getString(R.string.waiting_camera_frames)
         analysis.setAnalyzer(cameraExecutor) {image ->
             try {
                 val now=SystemClock.elapsedRealtime()
                 if(token == session && running && throttle.shouldProcess(now, 75)) {
+                    frames++
                     val value = decoder.decode(image);val stableFrame=decoder.isFrameStable
-                    handler.post {if(token == session && running) handleCameraFrame(value, now, stableFrame)}
+                    val took=SystemClock.elapsedRealtime()-now
+                    val count=frames;val report=now-lastReport>=1000||value!=null
+                    if(report)lastReport=now
+                    handler.post {if(token == session && running) {
+                        if(report)scannerStatus=getString(if(value==null)R.string.analyzing_camera_frames else R.string.camera_decode_detected,count,took)
+                        handleCameraFrame(value, now, stableFrame)
+                        if(report)render()
+                    }}
                 }
-            } catch(error: Exception) {handler.post {if(token == session) {consensus.reset();scanGate.pause()}}} // Decode failures are not proof of absence.
+            } catch(error: Exception) {handler.post {if(token == session && running) {
+                consensus.reset();scanGate.pause()
+                scannerStatus=getString(R.string.camera_analysis_error,error.javaClass.simpleName);render()
+            }}} // Decode failures are not proof of absence; report rather than silently swallowing them.
             finally {image.close()}
         }
         provider.unbindAll(); provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
@@ -306,6 +323,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         session++; running = false; starting = false; previewReady = false
+        scannerStatus=""
         cameraProvider?.unbindAll(); root?.keepScreenOn = false; scanFeedback = 0
         dismissRepeatWarning(); scanGate.pause(); consensus.reset(); render()
     }

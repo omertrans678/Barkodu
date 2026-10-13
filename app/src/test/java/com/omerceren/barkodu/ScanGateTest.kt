@@ -4,6 +4,12 @@ import org.junit.Assert.*
 import com.omerceren.barkodu.ScanGate.Decision.*
 
 class ScanGateTest {
+    @Test fun slowMatchingFramesCanStillCompleteConsensus() {
+        val consensus=DecodeConsensus()
+        assertNull(consensus.observe("4161215728",0))
+        assertNull(consensus.observe("4161215728",1500))
+        assertEquals("4161215728",consensus.observe("4161215728",3000))
+    }
     @Test fun intermittentCameraDecodesAccumulateWithoutAcceptingConflicts() {
         val consensus=DecodeConsensus()
         assertNull(consensus.observe("731234",0));assertNull(consensus.observe(null,75))

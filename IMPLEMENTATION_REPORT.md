@@ -1,5 +1,17 @@
 # Barkodu implementation report
 
+## 0.6.2-beta camera follow-up
+
+The user confirmed that the same line barcode scanned in v0.5 and stopped scanning from v0.6 onward. Git comparison places the regression at the ML Kit-to-ZXing backend change and lower camera resolution selection. The device-specific cause is not conclusively captured: no phone is connected through ADB.
+
+- Restore the highest-available camera resolution negotiation from v0.5.
+- Decode oblique one-dimensional scan lines at several angles and positions, forward/reversed, before standard whole-frame decoding. Barcode format/checksum handling remains ZXing's; no new dependency or network SDK is added.
+- Preserve consecutive matching results even when individual camera decodes take over one second. Only observed missed frames or conflicting values expire/reset candidate evidence; stop/start explicitly resets it.
+- Display local frame count, processing time and exception type inside the camera. Analysis exceptions remain excluded from absence evidence but are no longer silent. No barcode payload or camera image is logged or transmitted.
+- Add tests for narrow labels tilted at +22°, −22° and 58°, and for matching frames processed 1.5 seconds apart. All existing format, buffer, identity, privacy and UI tests pass.
+- **Validation: 65 tests passed, zero failures; lint zero errors / 16 advisory warnings; signed release assembly passed.** The reporting phone's optical scanning still needs verification; these results do not establish that its physical failure is resolved.
+- Files changed: `app/build.gradle`, `CameraBarcodeDecoder.kt`, `MainActivity.kt`, `ScanGate.kt`, `MiuixUi.kt`, `res/values/strings.xml`, `CameraBarcodeDecoderTest.kt`, `ScanGateTest.kt`, README, changelog and this report.
+
 ## 0.6.1-beta follow-up
 
 - Fixed a reproducible acceptance failure: a single empty decode reset all candidate evidence, so intermittent valid camera readings never reached the three-read threshold. Brief misses now preserve the candidate; a different code or a gap over one second resets it. The duplicate identity gate and motion/absence checks remain independent.

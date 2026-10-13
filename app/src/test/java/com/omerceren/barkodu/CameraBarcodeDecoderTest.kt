@@ -7,6 +7,20 @@ import org.junit.Assert.*
 @org.junit.runner.RunWith(org.robolectric.RobolectricTestRunner::class)
 @org.robolectric.annotation.Config(sdk=[34])
 class CameraBarcodeDecoderTest {
+    @Test fun narrowTiltedCameraLabelDecodesWithoutPerfectAlignment() {
+        val label=MultiFormatWriter().encode("4161215728",BarcodeFormat.CODE_128,800,40)
+        val width=960;val height=640;val pixels=ByteArray(width*height){230.toByte()}
+        for(degrees in listOf(22.0,-22.0,58.0)) {
+            pixels.fill(230.toByte())
+            val angle=degrees*kotlin.math.PI/180;val c=kotlin.math.cos(angle);val s=kotlin.math.sin(angle)
+            for(y in 0 until height)for(x in 0 until width) {
+                val ox=x-width/2.0;val oy=y-height/2.0
+                val lx=(ox*c+oy*s+400).toInt();val ly=(-ox*s+oy*c+20).toInt()
+                if(lx in 0 until 800&&ly in 0 until 40)pixels[y*width+x]=if(label[lx,ly])40 else 230.toByte()
+            }
+            assertEquals("Tilt $degrees", "4161215728",CameraBarcodeDecoder().decode(pixels,width,height))
+        }
+    }
     @Test fun allExistingFormatsDecodeOffline() {
         val examples=mapOf(BarcodeFormat.CODE_128 to "001Ab23456",BarcodeFormat.CODE_39 to "HTS001234",BarcodeFormat.CODE_93 to "73123456",BarcodeFormat.ITF to "4161215728",BarcodeFormat.CODABAR to "A0123456B")
         examples.forEach {(format,text)->

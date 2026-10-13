@@ -4,6 +4,8 @@ import androidx.camera.core.ImageProxy
 import com.google.zxing.*
 import com.google.zxing.common.HybridBinarizer
 import com.google.zxing.common.GlobalHistogramBinarizer
+import com.google.zxing.oned.MultiFormatOneDReader
+import kotlin.math.*
 
 /** Local decoder only: no services, telemetry, downloads, sockets or image uploads. */
 class CameraBarcodeDecoder {
@@ -11,13 +13,15 @@ class CameraBarcodeDecoder {
     private var luminance=ByteArray(0)
     var isFrameStable = false
         private set
-    private val reader = MultiFormatReader().apply {setHints(mapOf(
+    private val hints=mapOf<DecodeHintType,Any>(
         DecodeHintType.POSSIBLE_FORMATS to listOf(BarcodeFormat.CODE_128, BarcodeFormat.CODE_39, BarcodeFormat.CODE_93, BarcodeFormat.ITF, BarcodeFormat.CODABAR),
         DecodeHintType.TRY_HARDER to true,
         DecodeHintType.RETURN_CODABAR_START_END to true,
         DecodeHintType.CHARACTER_SET to "UTF-8",
         DecodeHintType.ALLOWED_LENGTHS to (6..64 step 2).toList().toIntArray()
-    ))}
+    )
+    private val reader = MultiFormatReader().apply {setHints(hints)}
+    private val lineReader=MultiFormatOneDReader(hints)
     fun decode(image: ImageProxy): String? {
         val crop = image.cropRect; val plane = image.planes[0]; val buffer = plane.buffer.duplicate()
         val count=crop.width()*crop.height()
@@ -34,7 +38,32 @@ class CameraBarcodeDecoder {
         isFrameStable = stability.observe(bytes,width,height)
         val source=FrameSource(bytes,width,height)
         // Live camera lighting can defeat local thresholds even when a scan line is readable.
-        return read(HybridBinarizer(source)) ?: read(GlobalHistogramBinarizer(source))
+        // OneDReader only tries horizontal/vertical rows. Camera labels are often tilted.
+        // Sample oblique lines directly instead of allocating whole rotated camera images.
+        return readAngledLines(bytes,width,height) ?: read(HybridBinarizer(source)) ?: read(GlobalHistogramBinarizer(source))
+    }
+    private fun readAngledLines(bytes:ByteArray,width:Int,height:Int):String? {
+        for(degrees in intArrayOf(0,90,8,-8,16,-16,24,-24,32,-32,45,-45,60,-60,75,-75)) {
+            val radians=degrees*PI/180;val dx=cos(radians);val dy=sin(radians)
+            for(fraction in doubleArrayOf(0.5,0.35,0.65)) {
+                val cx=(width-1)*0.5;val cy=(height-1)*fraction
+                val half=min(if(abs(dx)<0.001)Double.MAX_VALUE else cx/abs(dx),if(abs(dy)<0.001)Double.MAX_VALUE else min(cy,height-1-cy)/abs(dy))
+                val length=(half*2).toInt();if(length<64)continue
+                val row=ByteArray(length){i->
+                    val distance=i-(length-1)*0.5
+                    val x=(cx+distance*dx).roundToInt().coerceIn(0,width-1)
+                    val y=(cy+distance*dy).roundToInt().coerceIn(0,height-1)
+                    bytes[y*width+x]
+                }
+                val bits=try {GlobalHistogramBinarizer(FrameSource(row,length,1)).getBlackRow(0,null)}catch(missed:ReaderException){continue}
+                repeat(2) {direction->
+                    if(direction==1)bits.reverse()
+                    try {return lineReader.decodeRow(0,bits,hints).text}
+                    catch(missed:ReaderException) {} finally {lineReader.reset()}
+                }
+            }
+        }
+        return null
     }
     private fun read(binarizer:Binarizer):String? = try {reader.decodeWithState(BinaryBitmap(binarizer)).text}
         catch(notFound:ReaderException){null}

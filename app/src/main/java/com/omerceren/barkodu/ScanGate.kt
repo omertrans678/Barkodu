@@ -33,7 +33,9 @@ class DecodeConsensus(private val requiredReads: Int = 3, private val stableMs: 
     fun observe(code: String?, now: Long): String? {
         // Camera decodes are intermittent. A brief missed frame is not a conflicting reading.
         if(code == null) {if(now-lastSeen>maximumGapMs||now<lastSeen)reset(); return null}
-        if(code != candidate || now - lastSeen > maximumGapMs || now < lastSeen) {candidate = code; firstSeen = now; reads = 0}
+        // A slow decoder with matching consecutive results is not evidence of absence.
+        // Only analyzed misses expire evidence; camera stop explicitly resets this object.
+        if(code != candidate || now < lastSeen) {candidate = code; firstSeen = now; reads = 0}
         lastSeen = now; reads = minOf(requiredReads,reads+1)
         return code.takeIf {reads >= requiredReads && now - firstSeen >= stableMs}
     }

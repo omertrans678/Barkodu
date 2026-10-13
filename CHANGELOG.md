@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.2-beta
+
+- Improve detection of narrow and tilted line barcodes.
+- Restore the camera resolution selection used in v0.5.
+- Allow slow but consistent camera readings to complete validation.
+- Show scan progress and camera-analysis errors instead of remaining silent.
+
 ## 0.6.1-beta
 
 - Keep consistent barcode readings across brief missed camera frames so scanning can complete reliably.
