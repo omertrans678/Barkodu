@@ -12,7 +12,7 @@
 - Rebuild carrier lists inside native Miuix TabRow/pager content with independent saved scroll positions.
 - Use Miuix BasicComponent rows in Save and Settings, remove the unused Scan top-bar space, and respect disabled system animations in About.
 - Fix Android 6 compatibility of navigation-bar theme resources and update dependency license notices.
-- Verify with 59 automated tests, debug lint and signed ARM phone release assembly.
+- Verify with 59 automated tests, debug lint and release assembly.
 
 ## 0.5-beta
 
