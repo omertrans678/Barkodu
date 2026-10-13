@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6-beta
+
+- Convert all application and test source from Java to Kotlin while retaining saved data and exports.
+- Use bundled ZXing instead of ML Kit; remove network permissions and telemetry dependencies, disable backup and document privacy.
+- Confirm camera results across three consistent reads; separate configurable scan delay from frame throttling and motion-resistant repeat detection.
+- Vibrate once after a real addition; never vibrate for duplicate warnings or add duplicates automatically.
+- Validate exactly ten characters only for DHL/JET 416/417 prefixes, preserving other lengths and leading zeros.
+- Add persistent per-carrier prefix whitelist settings and a native carrier-selection bottom sheet with Clear selection.
+- Add long-press multi-selection, checkbox deletion and targeted Undo with persistent item IDs.
+- Rebuild carrier lists inside native Miuix TabRow/pager content with independent saved scroll positions.
+- Use Miuix BasicComponent rows in Save and Settings, remove the unused Scan top-bar space, and respect disabled system animations in About.
+- Fix Android 6 compatibility of navigation-bar theme resources and update dependency license notices.
+- Verify with 59 automated tests, debug lint and signed ARM phone release assembly.
+
 ## 0.5-beta
 
 - Keep the paused blur visible until CameraX reports a streaming preview, then fade to live video.

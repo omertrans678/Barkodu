@@ -6,8 +6,8 @@ android {
         applicationId 'com.omerceren.barkodu'
         minSdk 23
         targetSdk 36
-        versionCode 5
-        versionName '0.5-beta'
+        versionCode 6
+        versionName '0.6-beta'
         if (project.hasProperty('phoneApk')) { ndk { abiFilters 'arm64-v8a', 'armeabi-v7a' } }
     }
     signingConfigs {
@@ -37,11 +37,14 @@ dependencies {
     implementation 'org.jetbrains.compose.ui:ui:1.10.3'
     implementation 'androidx.activity:activity:1.12.4'
     implementation 'androidx.core:core:1.16.0'
+    // Already present at runtime; expose the provider referenced by our manifest to lint.
+    implementation 'androidx.startup:startup-runtime:1.1.1'
     implementation 'androidx.camera:camera-core:1.5.3'
     implementation 'androidx.camera:camera-camera2:1.5.3'
     implementation 'androidx.camera:camera-lifecycle:1.5.3'
     implementation 'androidx.camera:camera-view:1.5.3'
-    implementation 'com.google.mlkit:barcode-scanning:17.3.0'
+    implementation 'com.google.zxing:core:3.5.3'
+    implementation 'androidx.compose.material3:material3:1.4.0'
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.robolectric:robolectric:4.17'
     testImplementation 'androidx.compose.ui:ui-test-junit4:1.10.5'

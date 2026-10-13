@@ -79,12 +79,12 @@ class MiuixScreenTest {
     }
     @Test fun swipePagesAndNavigationKeepRecordsAndCameraStopped(){
         compose.runOnIdle {compose.activity.selectCargo(2);compose.activity.addManual("731234")};settle()
-        compose.onNodeWithTag("pages").performTouchInput {swipe(androidx.compose.ui.geometry.Offset(width*0.9f,height*0.85f),androidx.compose.ui.geometry.Offset(width*0.1f,height*0.85f),350)};settle()
+        compose.onNodeWithTag("pages").performTouchInput {swipe(androidx.compose.ui.geometry.Offset(width*0.9f,height*0.04f),androidx.compose.ui.geometry.Offset(width*0.1f,height*0.04f),350)};settle()
         compose.runOnIdle {assertEquals(1,compose.activity.page);assertFalse(compose.activity.isCameraActive)}
         compose.onNodeWithText("Excel").assertIsDisplayed()
-        compose.onNodeWithTag("pages").performTouchInput {swipe(androidx.compose.ui.geometry.Offset(width*0.9f,height*0.85f),androidx.compose.ui.geometry.Offset(width*0.1f,height*0.85f),350)};settle()
+        compose.onNodeWithTag("pages").performTouchInput {swipe(androidx.compose.ui.geometry.Offset(width*0.9f,height*0.04f),androidx.compose.ui.geometry.Offset(width*0.1f,height*0.04f),350)};settle()
         compose.runOnIdle {assertEquals(2,compose.activity.page)}
-        compose.onNodeWithTag("pages").performTouchInput {swipe(androidx.compose.ui.geometry.Offset(width*0.1f,height*0.85f),androidx.compose.ui.geometry.Offset(width*0.9f,height*0.85f),350)};settle()
+        compose.onNodeWithTag("pages").performTouchInput {swipe(androidx.compose.ui.geometry.Offset(width*0.1f,height*0.04f),androidx.compose.ui.geometry.Offset(width*0.9f,height*0.04f),350)};settle()
         compose.runOnIdle {assertEquals(1,compose.activity.page)}
         nav("Scan");compose.onNodeWithText("731234").assertIsDisplayed()
         compose.mainClock.autoAdvance=false
@@ -106,9 +106,9 @@ class MiuixScreenTest {
         compose.activityRule.scenario.recreate();settle()
         compose.runOnIdle {assertEquals(2,compose.activity.themeMode)}
         nav("Scan");screenshot("scan-white.png")
-        compose.onNodeWithTag("pages").performTouchInput {swipe(androidx.compose.ui.geometry.Offset(width*0.9f,height*0.85f),androidx.compose.ui.geometry.Offset(width*0.1f,height*0.85f),350)};settle()
+        compose.onNodeWithTag("pages").performTouchInput {swipe(androidx.compose.ui.geometry.Offset(width*0.9f,height*0.04f),androidx.compose.ui.geometry.Offset(width*0.1f,height*0.04f),350)};settle()
         screenshot("save-white.png")
-        compose.onNodeWithTag("pages").performTouchInput {swipe(androidx.compose.ui.geometry.Offset(width*0.9f,height*0.85f),androidx.compose.ui.geometry.Offset(width*0.1f,height*0.85f),350)};settle()
+        compose.onNodeWithTag("pages").performTouchInput {swipe(androidx.compose.ui.geometry.Offset(width*0.9f,height*0.04f),androidx.compose.ui.geometry.Offset(width*0.1f,height*0.04f),350)};settle()
         compose.onNodeWithText("About").performClick();settle();screenshot("about-white.png")
     }
     @Test fun spinnerManualValidationRepeatActionAndPages(){
@@ -126,15 +126,15 @@ class MiuixScreenTest {
         screenshot("scan.png")
         manual("7312345678")
         compose.onAllNodesWithText("7312345678").assertCountEquals(1)
-        compose.onNodeWithText("Yine ekle").assertIsDisplayed()
+        compose.onNodeWithText("Add again").assertIsDisplayed()
         screenshot("repeat-snackbar.png")
-        compose.onNodeWithText("Yine ekle").performClick();settle()
+        compose.onNodeWithText("Add again").performClick();settle()
         compose.runOnIdle {val activity=compose.activity;activity.confirmRepeat(1);assertEquals(2,activity.model.items.size)};settle()
         compose.onAllNodesWithText("7312345678").assertCountEquals(2)
         nav("Save");compose.onNodeWithText("Excel").assertIsDisplayed();screenshot("save.png")
         nav("Settings");compose.onNodeWithText("v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})").assertIsDisplayed();screenshot("settings.png")
         compose.onNodeWithText("About").performClick();settle()
-        compose.onNodeWithText("Ömer tarafından yapılmıştır.").assertIsDisplayed();screenshot("about.png")
+        compose.onNodeWithText("Made by Ömer.").assertIsDisplayed();screenshot("about.png")
         compose.onNodeWithText("Third-party Licenses").performClick();settle()
         compose.onNodeWithText("Third-party Licenses",substring=true).assertExists()
     }
@@ -143,10 +143,10 @@ class MiuixScreenTest {
             val a=compose.activity;a.selectCargo(2);a.handleDecodedBarcode("731234",0)
             for(t in 100..2000 step 100)a.handleDecodedBarcode("731234",t.toLong())
             assertNull(a.pendingRepeat);assertEquals(1,a.model.items.size)
-            a.handleDecodedBarcode(null,2100);a.handleDecodedBarcode(null,2600);a.handleDecodedBarcode("731234",2601)
+            for(t in 2100..3600 step 250)a.handleDecodedBarcode(null,t.toLong());a.handleDecodedBarcode("731234",3601)
             val id=a.pendingRepeat!!.id
-            a.handleDecodedBarcode("731234",3500);assertEquals(id,a.pendingRepeat!!.id)
-            a.closeRepeat(id);a.handleDecodedBarcode("731234",3600);assertNull(a.pendingRepeat);assertEquals(1,a.model.items.size)
+            a.handleDecodedBarcode("731234",4100);assertEquals(id,a.pendingRepeat!!.id)
+            a.closeRepeat(id);a.handleDecodedBarcode("731234",4200);assertNull(a.pendingRepeat);assertEquals(1,a.model.items.size)
             a.addManual("731234");val newId=a.pendingRepeat!!.id;a.closeRepeat(id);assertEquals(newId,a.pendingRepeat!!.id)
         }
         compose.onNodeWithTag("notice").performTouchInput {swipeLeft()};settle()
@@ -182,14 +182,14 @@ class MiuixScreenTest {
         nav("Save");compose.onNodeWithText("Excel").assertIsDisplayed()
     }
     @Test fun disabledWarningAndClearUndo(){
-        compose.runOnIdle {val a=compose.activity;a.selectCargo(2);a.setRepeatWarningEnabled(false);a.addManual("731234");a.addManual("731234");assertEquals(2,a.model.items.size)}
+        compose.runOnIdle {val a=compose.activity;a.selectCargo(2);a.setRepeatWarningEnabled(false);a.addManual("731234");a.addManual("731234");assertEquals(1,a.model.items.size)}
         nav("Settings");compose.onAllNodes(isToggleable()).onFirst().assertIsOff()
         compose.activityRule.scenario.recreate();settle();compose.onAllNodes(isToggleable()).onFirst().assertIsOff()
         nav("Save");compose.onNodeWithText("Clear all").performClick();settle()
         compose.onNodeWithText("Clear",useUnmergedTree=true).performClick();settle()
         compose.onNodeWithText("Your saved list is empty").assertIsDisplayed()
         compose.onNodeWithText("Undo").performClick();settle()
-        compose.runOnIdle {assertEquals(2,compose.activity.model.items.size)}
+        compose.runOnIdle {assertEquals(1,compose.activity.model.items.size)}
     }
     @Test fun listScrollAndRotationPreserveSelectionAndRecords(){
         compose.runOnIdle {
@@ -219,7 +219,7 @@ class MiuixScreenTest {
         compose.onNodeWithText("001234").assertIsDisplayed()
     }
     @Test fun exportUsesSystemPickerAndCopiesDuplicateRows(){
-        compose.runOnIdle {val a=compose.activity;a.selectCargo(2);a.setRepeatWarningEnabled(false);a.setUnknownConfirmationEnabled(false);a.setUnknownSoundEnabled(false);a.addManual("001234");a.addManual("001234");a.exportAction("txt",false)}
+        compose.runOnIdle {val a=compose.activity;a.selectCargo(2);a.setUnknownConfirmationEnabled(false);a.setUnknownSoundEnabled(false);a.addManual("001234");a.addManual("001234");a.confirmRepeat(a.pendingRepeat!!.id);a.exportAction("txt",false)}
         var intent:android.content.Intent?=null
         compose.waitUntil(10000) {
             org.robolectric.shadows.ShadowLooper.idleMainLooper()
@@ -346,7 +346,7 @@ class MiuixScreenTest {
     @Test fun navigationFocusChangesBeforeSwipeSettlesAndAboutSlidesEntireScreen(){
         compose.mainClock.autoAdvance=false
         val pages=compose.onNodeWithTag("pages")
-        pages.performTouchInput {down(androidx.compose.ui.geometry.Offset(width*0.9f,height*0.85f));moveBy(androidx.compose.ui.geometry.Offset(-width*0.7f,0f),250)}
+        pages.performTouchInput {down(androidx.compose.ui.geometry.Offset(width*0.9f,height*0.04f));moveBy(androidx.compose.ui.geometry.Offset(-width*0.7f,0f),250)}
         compose.mainClock.advanceTimeBy(48);compose.waitForIdle()
         compose.onNodeWithTag("navigation-1").assertIsSelected()
         pages.performTouchInput {up()}
