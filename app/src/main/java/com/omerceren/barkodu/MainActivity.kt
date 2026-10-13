@@ -240,8 +240,8 @@ class MainActivity : ComponentActivity() {
         if(scanGate.observe(code, now) == ScanGate.Decision.ADD && code != null) requestAdd(code)
     }
     fun handleCameraFrame(code: String?, now: Long, stableFrame: Boolean = true) {
-        if(code==null&&!stableFrame){consensus.reset();scanGate.pause();return}
-        if(code == null) {consensus.reset(); scanGate.observe(null, now); return}
+        if(code==null&&!stableFrame){consensus.observe(null,now);scanGate.pause();return}
+        if(code == null) {consensus.observe(null,now); scanGate.observe(null, now); return}
         scanGate.present()
         if(!CargoModel.valid(code)) {consensus.reset(); return}
         val stable = consensus.observe(code, now) ?: return

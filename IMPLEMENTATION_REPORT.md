@@ -1,4 +1,18 @@
-# Barkodu v0.6-beta implementation report
+# Barkodu implementation report
+
+## 0.6.1-beta follow-up
+
+- Fixed a reproducible acceptance failure: a single empty decode reset all candidate evidence, so intermittent valid camera readings never reached the three-read threshold. Brief misses now preserve the candidate; a different code or a gap over one second resets it. The duplicate identity gate and motion/absence checks remain independent.
+- Added global brightness-threshold decoding as a fallback after hybrid thresholding. No network library or new dependency was added.
+- Replaced carrier selection and Theme dialogs with native Miuix 0.8.8 SuperDropdown. Clear selection and persistent carrier/theme behavior are retained.
+- Rounded the TabRow background, added a four-dp inner inset and twenty-dp surrounding card spacing in portrait (twelve in compact layouts).
+- Retained virtualized, unbounded-count carrier lists and added bottom clearance. A 1,000-entry regression test scrolls to the last entry and back by gesture, verifying no truncation.
+- Added four regression tests: intermittent consensus, stale evidence expiry, real decoder-to-Activity addition with interleaved misses, and long-list scrolling/reference insets. Existing dropdown/persistence tests were adapted and passed.
+- **Validation: 63 tests passed, zero failures; debug lint zero errors / 14 advisory warnings; release assembled successfully.** Scan and Settings screenshots were visually inspected.
+- Changed files: `app/build.gradle`, `CameraBarcodeDecoder.kt`, `ScanGate.kt`, `MainActivity.kt`, `MiuixUi.kt`, `ScanGateTest.kt`, `ReliableScanningUiTest.kt`, `README.md`, `CHANGELOG.md`, and this report.
+- Physical camera frames and hardware behavior on the reporting phone cannot be verified from this workspace; the intermittent acceptance failure is reproduced and fixed in the automated decoder/state pipeline. Difficult lighting and optical accuracy still require a device check.
+
+## 0.6-beta implementation
 
 ## Completed requirements
 

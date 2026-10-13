@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.1-beta
+
+- Keep consistent barcode readings across brief missed camera frames so scanning can complete reliably.
+- Add a second brightness-threshold strategy for camera decoding.
+- Use native Miuix dropdowns for Carrier to scan and Theme.
+- Add rounded, inset TabRow spacing matching the reference.
+- Allow long barcode lists to scroll through all entries, with extra space after the last row.
+
 ## 0.6-beta
 
 - Convert all application and test source from Java to Kotlin while retaining saved data and exports.

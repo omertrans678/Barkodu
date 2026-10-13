@@ -3,6 +3,7 @@ package com.omerceren.barkodu
 import androidx.camera.core.ImageProxy
 import com.google.zxing.*
 import com.google.zxing.common.HybridBinarizer
+import com.google.zxing.common.GlobalHistogramBinarizer
 
 /** Local decoder only: no services, telemetry, downloads, sockets or image uploads. */
 class CameraBarcodeDecoder {
@@ -31,10 +32,13 @@ class CameraBarcodeDecoder {
     }
     fun decode(bytes: ByteArray, width: Int, height: Int): String? {
         isFrameStable = stability.observe(bytes,width,height)
-        return try {reader.decodeWithState(BinaryBitmap(HybridBinarizer(FrameSource(bytes, width, height)))).text}
-        catch(notFound: ReaderException) {null}
-        finally {reader.reset()}
+        val source=FrameSource(bytes,width,height)
+        // Live camera lighting can defeat local thresholds even when a scan line is readable.
+        return read(HybridBinarizer(source)) ?: read(GlobalHistogramBinarizer(source))
     }
+    private fun read(binarizer:Binarizer):String? = try {reader.decodeWithState(BinaryBitmap(binarizer)).text}
+        catch(notFound:ReaderException){null}
+        finally{reader.reset()}
     private class FrameSource(private val bytes: ByteArray, width: Int, height: Int): LuminanceSource(width, height) {
         override fun getRow(y: Int, row: ByteArray?): ByteArray = (row?.takeIf {it.size >= width} ?: ByteArray(width)).also {bytes.copyInto(it, 0, y*width, (y+1)*width)}
         override fun getMatrix() = bytes

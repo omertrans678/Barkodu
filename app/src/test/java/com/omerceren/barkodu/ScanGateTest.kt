@@ -4,6 +4,20 @@ import org.junit.Assert.*
 import com.omerceren.barkodu.ScanGate.Decision.*
 
 class ScanGateTest {
+    @Test fun intermittentCameraDecodesAccumulateWithoutAcceptingConflicts() {
+        val consensus=DecodeConsensus()
+        assertNull(consensus.observe("731234",0));assertNull(consensus.observe(null,75))
+        assertNull(consensus.observe("731234",150));assertNull(consensus.observe(null,225))
+        assertEquals("731234",consensus.observe("731234",300))
+        assertNull(consensus.observe("739999",375));assertNull(consensus.observe("731234",450))
+    }
+    @Test fun staleCameraEvidenceExpiresAfterSustainedMisses() {
+        val consensus=DecodeConsensus()
+        consensus.observe("731234",0);consensus.observe("731234",100)
+        consensus.observe(null,1200)
+        assertNull(consensus.observe("731234",1250));assertNull(consensus.observe("731234",1325))
+        assertEquals("731234",consensus.observe("731234",1400))
+    }
     @Test fun heldCodeNeverRepeats() {
         val gate=ScanGate();assertEquals(ADD,gate.observe("731234",0));for(t in 16..20000 step 16)assertEquals(IGNORE,gate.observe("731234",t.toLong()))
     }

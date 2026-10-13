@@ -25,14 +25,15 @@ class ScanGate(private val absenceMs: Long = 1_200, private val minimumEmptyFram
 }
 
 /** Reject isolated and alternating decodes; never truncate or pad the decoder's string. */
-class DecodeConsensus(private val requiredReads: Int = 3, private val stableMs: Long = 120) {
+class DecodeConsensus(private val requiredReads: Int = 3, private val stableMs: Long = 120, private val maximumGapMs: Long = 1_000) {
     private var candidate: String? = null
     private var firstSeen = 0L
     private var lastSeen = 0L
     private var reads = 0
     fun observe(code: String?, now: Long): String? {
-        if(code == null) {reset(); return null}
-        if(code != candidate || now - lastSeen > 5_000 || now < lastSeen) {candidate = code; firstSeen = now; reads = 0}
+        // Camera decodes are intermittent. A brief missed frame is not a conflicting reading.
+        if(code == null) {if(now-lastSeen>maximumGapMs||now<lastSeen)reset(); return null}
+        if(code != candidate || now - lastSeen > maximumGapMs || now < lastSeen) {candidate = code; firstSeen = now; reads = 0}
         lastSeen = now; reads = minOf(requiredReads,reads+1)
         return code.takeIf {reads >= requiredReads && now - firstSeen >= stableMs}
     }

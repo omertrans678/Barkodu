@@ -43,6 +43,7 @@ import androidx.compose.ui.layout.ContentScale
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.extra.SuperArrow
+import top.yukonga.miuix.kmp.extra.SuperDropdown
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.*
@@ -107,8 +108,6 @@ class MiuixUi(private val activity: MainActivity) {
         LaunchedEffect(pager){snapshotFlow {pager.isScrollInProgress}.collect {if(it&&activity.isCameraActive)activity.pauseScanning()}}
         var about by rememberSaveable { mutableStateOf(false) }
         var license by rememberSaveable { mutableStateOf("") }
-        var carrierSheet by rememberSaveable {mutableStateOf(false)}
-        var themeDialog by rememberSaveable {mutableStateOf(false)}
         var delayDialog by rememberSaveable {mutableStateOf(false)}
         var delayInput by rememberSaveable {mutableStateOf("")}
         var whitelistDialog by rememberSaveable {mutableStateOf(false)}
@@ -228,7 +227,7 @@ class MiuixUi(private val activity: MainActivity) {
                 val pageContent: @Composable (Int) -> Unit = { destination ->
                     val renderTick=revision
                     when(destination) {
-                        0 -> Column(Modifier.fillMaxSize()) { Text(str(R.string.scan),Modifier.padding(horizontal=24.dp,vertical=8.dp),fontSize=30.sp); Scan(lists,onAdd={activity.pauseScanning();error="";manual=true},onCarrier={activity.pauseScanning();carrierSheet=true}) }
+                        0 -> Column(Modifier.fillMaxSize()) { Text(str(R.string.scan),Modifier.padding(horizontal=24.dp,vertical=8.dp),fontSize=30.sp); Scan(lists,onAdd={activity.pauseScanning();error="";manual=true}) }
                         1 -> Column(Modifier.fillMaxSize().verticalScroll(saveScroll).padding(horizontal=16.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(20.dp)) {
                             Text(str(R.string.save),fontSize=30.sp)
                             Text(str(R.string.barcodes_ready,model.items.size),Modifier.padding(horizontal=16.dp),fontSize=14.sp,color=Muted)
@@ -246,7 +245,7 @@ class MiuixUi(private val activity: MainActivity) {
                             Text(str(R.string.settings),Modifier.padding(horizontal=16.dp),fontSize=30.sp)
                             Text(versionLabel(),Modifier.padding(horizontal=16.dp),fontSize=14.sp,color=Muted)
                             Card(Modifier.fillMaxWidth(),insideMargin=PaddingValues(0.dp)) {
-                                BasicComponent(title=str(R.string.theme),summary=str(R.string.theme_summary),onClick={themeDialog=true},endActions={Text(listOf(str(R.string.system),str(R.string.black),str(R.string.white))[activity.themeMode],fontSize=14.sp,color=Muted)})
+                                SuperDropdown(title=str(R.string.theme),summary=str(R.string.theme_summary),items=listOf(str(R.string.system),str(R.string.black),str(R.string.white)),selectedIndex=activity.themeMode,onSelectedIndexChange=activity::setThemeMode)
                                 SettingSwitch(str(R.string.repeat_scan_warning),str(R.string.repeat_summary),activity.isRepeatWarningEnabled,activity::setRepeatWarningEnabled)
                                 SettingSwitch(str(R.string.unrecognized_barcode_sound),str(R.string.unknown_sound_summary),activity.isUnknownSoundEnabled,activity::setUnknownSoundEnabled)
                                 SettingSwitch(str(R.string.confirm_unrecognized_barcodes),str(R.string.unknown_confirmation_summary),activity.isUnknownConfirmationEnabled,activity::setUnknownConfirmationEnabled)
@@ -261,21 +260,7 @@ class MiuixUi(private val activity: MainActivity) {
                 }
                 HorizontalPager(state=pager,modifier=Modifier.fillMaxSize().testTag("pages"),
                     flingBehavior=PagerDefaults.flingBehavior(state=pager,snapAnimationSpec=Motion.spring()),
-                    userScrollEnabled=!manual&&!clear&&!carrierSheet&&!themeDialog&&!delayDialog&&!whitelistDialog&&pending==null&&activity.pendingUnknown==null) {destination->pageContent(destination)}
-            }
-            SuperBottomSheet(show=carrierSheet,title=str(R.string.choose_carrier),onDismissRequest={carrierSheet=false}) {
-                Column(Modifier.fillMaxWidth().testTag("carrier-sheet")) {
-                    (CargoModel.NAMES.indices.toList()+(-1)).forEach {id->
-                        BasicComponent(title=if(id<0)str(R.string.clear_selection) else CargoModel.NAMES[id],
-                            onClick={activity.selectCargo(id);carrierSheet=false},
-                            endActions={Checkbox(checked=model.selected==id,onCheckedChange={activity.selectCargo(id);carrierSheet=false})})
-                    }
-                }
-            }
-            SuperDialog(show=themeDialog,title=str(R.string.theme),onDismissRequest={themeDialog=false}) {
-                listOf(str(R.string.system),str(R.string.black),str(R.string.white)).forEachIndexed {index,name->
-                    BasicComponent(title=name,onClick={activity.setThemeMode(index);themeDialog=false},endActions={Checkbox(checked=activity.themeMode==index,onCheckedChange={activity.setThemeMode(index);themeDialog=false})})
-                }
+                    userScrollEnabled=!manual&&!clear&&!delayDialog&&!whitelistDialog&&pending==null&&activity.pendingUnknown==null) {destination->pageContent(destination)}
             }
             SuperDialog(show=delayDialog,title=str(R.string.scan_delay),onDismissRequest={delayDialog=false}) {
                 TextField(value=delayInput,onValueChange={delayInput=it;settingsError=""},label=str(R.string.delay_ms),singleLine=true,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.fillMaxWidth())
@@ -362,7 +347,7 @@ class MiuixUi(private val activity: MainActivity) {
     @Composable private fun SettingSwitch(title:String,summary:String?,checked:Boolean,onChange:(Boolean)->Unit) {
         BasicComponent(title=title,summary=summary,onClick={onChange(!checked)},endActions={Switch(checked=checked,onCheckedChange=onChange)})
     }
-    @Composable private fun Scan(lists:List<LazyListState>,onAdd:()->Unit,onCarrier:()->Unit) {
+    @Composable private fun Scan(lists:List<LazyListState>,onAdd:()->Unit) {
         val tick=revision
         val model=activity.model
         val windowSize=LocalWindowInfo.current.containerSize
@@ -376,13 +361,15 @@ class MiuixUi(private val activity: MainActivity) {
         Column(Modifier.fillMaxSize().padding(horizontal=16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
             if(compact) Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
                 Camera(Modifier.height(80.dp).aspectRatio(16f/9f).testTag("camera-preview"))
-                Box(Modifier.weight(1f)){CarrierPicker(onCarrier)}
+                Box(Modifier.weight(1f)){CarrierPicker()}
             } else {
                 Camera(Modifier.fillMaxWidth().aspectRatio(16f/9f).testTag("camera-preview"))
-                CarrierPicker(onCarrier)
+                CarrierPicker()
             }
-            Card(Modifier.fillMaxWidth().weight(1f).padding(bottom=8.dp).testTag("carrier-tabs-card"),insideMargin=PaddingValues(if(compact)8.dp else 12.dp)) {
-                TabRow(tabs=CargoModel.NAMES.toList(),selectedTabIndex=navigation.selectedPage,onTabSelected=navigation::animateToPage)
+            Card(Modifier.fillMaxWidth().weight(1f).padding(bottom=8.dp).testTag("carrier-tabs-card"),insideMargin=PaddingValues(if(compact)12.dp else 20.dp)) {
+                Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Panel).padding(4.dp).testTag("carrier-tabs-inset")) {
+                    TabRow(tabs=CargoModel.NAMES.toList(),selectedTabIndex=navigation.selectedPage,onTabSelected=navigation::animateToPage,modifier=Modifier.clip(RoundedCornerShape(16.dp)),cornerRadius=16.dp)
+                }
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
                     Text(str(R.string.list_totals,model.items.size,model.count(0),model.count(1),model.count(2),model.count(3)),Modifier.weight(1f),fontSize=11.sp,color=Muted)
                     IconButton(onClick=onAdd,modifier=Modifier.size(40.dp).testTag("add-barcode")){Icon(MiuixIcons.Regular.Add,str(R.string.add_manually),Modifier.size(24.dp),tint=Accent)}
@@ -395,7 +382,8 @@ class MiuixUi(private val activity: MainActivity) {
                 HorizontalPager(state=pager,modifier=Modifier.fillMaxWidth().weight(1f).testTag("carrier-pages"),
                     flingBehavior=PagerDefaults.flingBehavior(state=pager,snapAnimationSpec=Motion.spring()),userScrollEnabled=!activity.selectionMode) {carrier->
                     val rows=model.items.filter {it.cargo==carrier}
-                    LazyColumn(state=lists[carrier],modifier=Modifier.fillMaxSize().then(if(carrier!=pager.currentPage)Modifier.clearAndSetSemantics{} else Modifier).testTag(if(carrier==model.active)"scan-list" else "scan-list-$carrier"),contentPadding=PaddingValues(vertical=6.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                    // Virtualized, unbounded item count; allow the last row to scroll fully into view.
+                    LazyColumn(state=lists[carrier],modifier=Modifier.fillMaxSize().then(if(carrier!=pager.currentPage)Modifier.clearAndSetSemantics{} else Modifier).testTag(if(carrier==model.active)"scan-list" else "scan-list-$carrier"),contentPadding=PaddingValues(top=8.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                         if(rows.isEmpty())item(key="empty"){Empty(str(R.string.no_barcodes),str(R.string.add_hint))}
                         items(rows,key={it.id}) {item->BarcodeCard(item,Modifier.animateItem(fadeInSpec=Motion.tween(),placementSpec=Motion.spring(),fadeOutSpec=Motion.tween()))}
                     }
@@ -439,10 +427,10 @@ class MiuixUi(private val activity: MainActivity) {
             }
         }
     }
-    @Composable private fun CarrierPicker(onClick:()->Unit) {
+    @Composable private fun CarrierPicker() {
         val tick=revision
-        Card(Modifier.fillMaxWidth().testTag("scan-carrier"),insideMargin=PaddingValues(0.dp)) {
-            BasicComponent(title=if(activity.model.selected<0)str(R.string.select_carrier) else CargoModel.NAMES[activity.model.selected],summary=str(R.string.carrier_to_scan),onClick=onClick)
+        Card(Modifier.fillMaxWidth(),insideMargin=PaddingValues(0.dp)) {
+            SuperDropdown(title=str(R.string.carrier_to_scan),summary=if(activity.model.selected<0)str(R.string.select_carrier) else null,modifier=Modifier.testTag("scan-carrier"),items=CargoModel.NAMES.toList()+str(R.string.clear_selection),selectedIndex=activity.model.selected.takeIf{it>=0}?:4,onSelectedIndexChange={activity.selectCargo(if(it==4)-1 else it)})
         }
     }
 

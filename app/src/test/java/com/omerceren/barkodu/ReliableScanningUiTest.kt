@@ -78,16 +78,43 @@ class ReliableScanningUiTest {
             a.selectCargo(3);assertTrue(a.addManual("721234567890"));assertEquals(3,a.model.items.size)
         }
     }
-    @Test fun cargoSheetSelectionAndClearDoNotDeleteRecords() {
+    @Test fun cargoDropdownSelectionAndClearDoNotDeleteRecords() {
         compose.onNodeWithText("Select carrier").performClick();settle()
-        compose.onNodeWithTag("carrier-sheet").assertIsDisplayed()
+        compose.onAllNodesWithText("ARAS").onLast().assertIsDisplayed()
         compose.onAllNodesWithText("DHL").onLast().performClick();settle()
         compose.runOnIdle {assertEquals(0,compose.activity.model.selected);compose.activity.addManual("4161215728")};settle()
         compose.onNodeWithTag("scan-carrier").performClick();settle()
-        compose.onNodeWithText("Clear selection").performClick();settle()
+        compose.onAllNodesWithText("Clear selection").onLast().performClick();settle()
         compose.runOnIdle {assertEquals(-1,compose.activity.model.selected);assertEquals(1,compose.activity.model.items.size);assertFalse(compose.activity.isCameraActive)}
         compose.activityRule.scenario.recreate();settle()
         compose.runOnIdle {assertEquals(-1,compose.activity.model.selected);assertEquals(1,compose.activity.model.items.size)}
+    }
+    @Test fun intermittentActualDecoderFramesReachCommittedAddition() {
+        compose.runOnIdle {
+            val a=compose.activity;a.selectCargo(0)
+            val image=com.google.zxing.MultiFormatWriter().encode("4161215728",com.google.zxing.BarcodeFormat.CODE_128,800,240)
+            val pixels=ByteArray(image.width*image.height){i->if(image[i%image.width,i/image.width])0 else 255.toByte()}
+            val decoder=CameraBarcodeDecoder()
+            repeat(5){i->a.handleCameraFrame(if(i%2==0)decoder.decode(pixels,800,240) else null,i*100L,false)}
+            assertEquals("4161215728",a.model.items.single().code)
+            repeat(5){i->a.handleCameraFrame(if(i%2==0)decoder.decode(pixels,800,240) else null,500+i*100L,false)}
+            assertEquals(1,a.model.items.size);assertNull(a.pendingRepeat)
+        }
+    }
+    @Test fun longListScrollsToEveryEntryAndTabsHaveReferenceInsets() {
+        compose.runOnIdle {
+            val a=compose.activity;a.model.selected=2
+            repeat(1000){a.model.addForCarrier("73${100000+it}",2)}
+            a.selectTab(2)
+        };settle()
+        val list=compose.activity.model.visible()
+        compose.onNodeWithTag("scan-list").performScrollToIndex(999);settle()
+        compose.onNodeWithTag("barcode-${list.last().id}").assertIsDisplayed()
+        compose.onNodeWithTag("scan-list").performTouchInput{swipeDown()};settle()
+        compose.onNodeWithTag("barcode-${list.last().id}").assertDoesNotExist()
+        val box=compose.onNodeWithTag("carrier-tabs-card").fetchSemanticsNode().boundsInRoot
+        val tabs=compose.onNodeWithTag("carrier-tabs-inset").fetchSemanticsNode().boundsInRoot
+        assertTrue(tabs.left-box.left>=20f);assertTrue(box.right-tabs.right>=20f)
     }
     @Test fun delayAndWhitelistPersistThroughUiAndRecreation() {
         nav("Settings")
